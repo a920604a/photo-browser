@@ -58,7 +58,7 @@ func newIndexer(t *testing.T, entries []scanner.Entry, walkErr error) (*Indexer,
 			atomic.AddInt32(&sp.metaCalls, 1)
 			return media.Metadata{MIMEType: "image/jpeg", Width: 100, Height: 100}, nil
 		},
-		Thumbnail: func(ctx context.Context, source, key string) error {
+		Thumbnail: func(ctx context.Context, source, key string, srcMaxDim int) error {
 			atomic.AddInt32(&sp.thumbCalls, 1)
 			return nil
 		},

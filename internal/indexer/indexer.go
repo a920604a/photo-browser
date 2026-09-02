@@ -21,7 +21,7 @@ type Options struct {
 
 type WalkFn func(root string, warn func(scanner.Warning)) ([]scanner.Entry, error)
 type ReadMetadataFn func(path string) (media.Metadata, error)
-type ThumbnailFn func(ctx context.Context, source, key string) error
+type ThumbnailFn func(ctx context.Context, source, key string, srcMaxDim int) error
 
 type Indexer struct {
 	Store        *catalog.Store
@@ -164,7 +164,7 @@ func (idx *Indexer) handleNew(
 		return nil // no thumbnail if we couldn't decode
 	}
 	key := ThumbnailKey(id, entry.MTimeNS, entry.Size)
-	if err := idx.Thumbnail(ctx, src, key); err != nil {
+	if err := idx.Thumbnail(ctx, src, key, maxDim(meta.Width, meta.Height)); err != nil {
 		counts.Warnings++
 		return nil
 	}
@@ -198,7 +198,7 @@ func (idx *Indexer) handleChanged(
 	existing.TakenAt = meta.TakenAt
 
 	newKey := ThumbnailKey(existing.ID, entry.MTimeNS, entry.Size)
-	if err := idx.Thumbnail(ctx, src, newKey); err != nil {
+	if err := idx.Thumbnail(ctx, src, newKey, maxDim(meta.Width, meta.Height)); err != nil {
 		counts.Warnings++
 		existing.ThumbnailKey = sql.NullString{}
 	} else {
@@ -221,7 +221,7 @@ func (idx *Indexer) handleUnchanged(
 ) error {
 	if opts.RebuildThumbnails {
 		key := ThumbnailKey(existing.ID, entry.MTimeNS, entry.Size)
-		if err := idx.Thumbnail(ctx, src, key); err != nil {
+		if err := idx.Thumbnail(ctx, src, key, maxDim(existing.Width, existing.Height)); err != nil {
 			counts.Warnings++
 		} else if !existing.ThumbnailKey.Valid || existing.ThumbnailKey.String != key {
 			if err := s.UpdateThumbnailKey(ctx, existing.ID, sql.NullString{String: key, Valid: true}, now); err != nil {
@@ -238,6 +238,13 @@ func (idx *Indexer) now() time.Time {
 		return idx.Now()
 	}
 	return time.Now().UTC()
+}
+
+func maxDim(w, h int) int {
+	if w > h {
+		return w
+	}
+	return h
 }
 
 func fallbackMIME(filename string) string {

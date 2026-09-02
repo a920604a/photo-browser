@@ -43,7 +43,7 @@ func TestThumbnailGenerateSuccess(t *testing.T) {
 	}
 
 	th := &Thumbnailer{Dir: thumbsDir, Command: script}
-	if err := th.Generate(context.Background(), source, "42-100-999"); err != nil {
+	if err := th.Generate(context.Background(), source, "42-100-999", 0); err != nil {
 		t.Fatal(err)
 	}
 
@@ -101,7 +101,7 @@ func TestThumbnailGenerateFailureLeavesNothing(t *testing.T) {
 	}
 
 	th := &Thumbnailer{Dir: thumbsDir, Command: script}
-	err := th.Generate(context.Background(), source, "1-2-3")
+	err := th.Generate(context.Background(), source, "1-2-3", 0)
 	if err == nil {
 		t.Fatal("expected error")
 	}
@@ -122,7 +122,7 @@ func TestThumbnailGenerateFailureLeavesNothing(t *testing.T) {
 func TestThumbnailInvalidKey(t *testing.T) {
 	th := &Thumbnailer{Dir: t.TempDir(), Command: "/bin/false"}
 	for _, key := range []string{"", "..", ".", "a/b", "../evil", "/abs"} {
-		if err := th.Generate(context.Background(), "unused", key); err == nil {
+		if err := th.Generate(context.Background(), "unused", key, 0); err == nil {
 			t.Fatalf("expected error for key %q", key)
 		}
 	}
@@ -146,7 +146,7 @@ func TestThumbnailRealVips(t *testing.T) {
 	f.Close()
 
 	th := NewThumbnailer(filepath.Join(work, "thumbs"))
-	if err := th.Generate(context.Background(), src, "real-1"); err != nil {
+	if err := th.Generate(context.Background(), src, "real-1", 800); err != nil {
 		t.Fatal(err)
 	}
 	final := filepath.Join(work, "thumbs", "real-1.webp")

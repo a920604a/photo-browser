@@ -19,9 +19,17 @@ func NewThumbnailer(dir string) *Thumbnailer {
 	return &Thumbnailer{Dir: dir, Command: DefaultCommand}
 }
 
+// MaxSize is the long-edge target for thumbnails.
+const MaxSize = 512
+
 // Generate produces {Dir}/{key}.webp from source, written first to a temp
 // file in Dir and atomically renamed. key must be a plain basename.
-func (t *Thumbnailer) Generate(ctx context.Context, source, key string) error {
+//
+// srcMaxDim is the caller's best knowledge of the source image's longer
+// dimension (0 means "unknown, assume large"). It is used only to clamp the
+// target size and prevent upscaling — vipsthumbnail 8.14 has no built-in
+// no-upscale flag, so we simply never ask it to shrink below source size.
+func (t *Thumbnailer) Generate(ctx context.Context, source, key string, srcMaxDim int) error {
 	if key == "" || filepath.Base(key) != key || key == "." || key == ".." {
 		return fmt.Errorf("invalid thumbnail key %q", key)
 	}
@@ -37,8 +45,17 @@ func (t *Thumbnailer) Generate(ctx context.Context, source, key string) error {
 	// Let vipsthumbnail create the file fresh at tmpPath.
 	_ = os.Remove(tmpPath)
 
+	size := MaxSize
+	if srcMaxDim > 0 && srcMaxDim < size {
+		size = srcMaxDim
+	}
+
 	final := filepath.Join(t.Dir, key+".webp")
-	args := []string{source, "--size", "512x512", "--output", tmpPath + "[Q=80,strip]"}
+	args := []string{
+		source,
+		"--size", fmt.Sprintf("%dx%d", size, size),
+		"--output", tmpPath + "[Q=80,strip]",
+	}
 	cmd := exec.CommandContext(ctx, t.Command, args...)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		_ = os.Remove(tmpPath)

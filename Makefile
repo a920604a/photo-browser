@@ -6,5 +6,11 @@ test:
 build:
 	docker build --platform linux/amd64 --target runtime -t photo-browser:local .
 
-acceptance: build
-	bash scripts/acceptance.sh
+acceptance:
+	docker build --target acceptance -t photo-browser-acceptance .
+	docker run --rm \
+	  --name photo-browser-acceptance-$$$$ \
+	  -v "$(CURDIR)/test-photos:/fixtures:ro" \
+	  -v "$(CURDIR)/scripts:/scripts:ro" \
+	  photo-browser-acceptance \
+	  bash /scripts/acceptance.sh

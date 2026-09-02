@@ -11,6 +11,10 @@ ARG TARGETARCH=amd64
 ENV CGO_ENABLED=0 GOOS=linux GOARCH=${TARGETARCH} GOAMD64=v1
 RUN go build -trimpath -ldflags='-s -w' -o /out/photo-app ./cmd/photo-app
 
+FROM build AS acceptance
+RUN cp /out/photo-app /usr/local/bin/photo-app
+ENV LANG=C.UTF-8
+
 FROM debian:bookworm-slim AS runtime
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates libvips-tools && rm -rf /var/lib/apt/lists/*
 COPY --from=build /out/photo-app /usr/local/bin/photo-app

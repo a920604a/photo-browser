@@ -24,7 +24,7 @@ func setupTwoPhotos(t *testing.T) (*Indexer, string, [2]string) {
 	thumbsDir := t.TempDir()
 	idx.ThumbnailDir = thumbsDir
 	// Real thumbnail fake: write a file per key so we can observe removal.
-	idx.Thumbnail = func(ctx context.Context, source, key string) error {
+	idx.Thumbnail = func(ctx context.Context, source, key string, srcMaxDim int) error {
 		return os.WriteFile(filepath.Join(thumbsDir, key+".webp"), []byte("t"), 0o644)
 	}
 	if _, err := idx.Run(context.Background(), Options{}); err != nil {
