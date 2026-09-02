@@ -238,6 +238,144 @@ func (s *Store) UpdateThumbnailKey(ctx context.Context, photoID int64, key sql.N
 	return err
 }
 
+// ListUnseenPhotos returns photos not marked seen by scanID (useful for debugging).
+func (s *Store) ListUnseenPhotos(ctx context.Context, scanID int64) ([]Photo, error) {
+	rows, err := s.conn.QueryContext(ctx,
+		`SELECT id, album_id, filename, relative_path, file_size, file_mtime_ns, mime_type,
+		        width, height, taken_at, thumbnail_key, last_seen_scan_id
+		 FROM photos
+		 WHERE last_seen_scan_id IS NULL OR last_seen_scan_id != ?`,
+		scanID,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Photo
+	for rows.Next() {
+		var p Photo
+		var width, height, lastSeen sql.NullInt64
+		if err := rows.Scan(
+			&p.ID, &p.AlbumID, &p.Filename, &p.RelativePath, &p.FileSize, &p.FileMTimeNS, &p.MIMEType,
+			&width, &height, &p.TakenAt, &p.ThumbnailKey, &lastSeen,
+		); err != nil {
+			return nil, err
+		}
+		if width.Valid {
+			p.Width = int(width.Int64)
+		}
+		if height.Valid {
+			p.Height = int(height.Int64)
+		}
+		if lastSeen.Valid {
+			p.LastSeenScanID = lastSeen.Int64
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// DeleteUnseen removes photos that were not marked seen by scanID and returns
+// the list of thumbnail keys that were dropped (nullable rows contribute no key).
+func (s *Store) DeleteUnseen(ctx context.Context, scanID int64) ([]string, int64, error) {
+	rows, err := s.conn.QueryContext(ctx,
+		`SELECT thumbnail_key FROM photos
+		 WHERE (last_seen_scan_id IS NULL OR last_seen_scan_id != ?)
+		   AND thumbnail_key IS NOT NULL`,
+		scanID,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	var keys []string
+	for rows.Next() {
+		var k sql.NullString
+		if err := rows.Scan(&k); err != nil {
+			rows.Close()
+			return nil, 0, err
+		}
+		if k.Valid {
+			keys = append(keys, k.String)
+		}
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	res, err := s.conn.ExecContext(ctx,
+		`DELETE FROM photos WHERE last_seen_scan_id IS NULL OR last_seen_scan_id != ?`,
+		scanID,
+	)
+	if err != nil {
+		return nil, 0, err
+	}
+	removed, _ := res.RowsAffected()
+	return keys, removed, nil
+}
+
+// DeleteEmptyAlbums removes albums with no photos. Returns number removed.
+func (s *Store) DeleteEmptyAlbums(ctx context.Context) (int64, error) {
+	res, err := s.conn.ExecContext(ctx,
+		`DELETE FROM albums WHERE id NOT IN (SELECT DISTINCT album_id FROM photos)`,
+	)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// DeleteEmptyCategories removes categories with no albums. Returns number removed.
+func (s *Store) DeleteEmptyCategories(ctx context.Context) (int64, error) {
+	res, err := s.conn.ExecContext(ctx,
+		`DELETE FROM categories WHERE id NOT IN (SELECT DISTINCT category_id FROM albums)`,
+	)
+	if err != nil {
+		return 0, err
+	}
+	n, _ := res.RowsAffected()
+	return n, nil
+}
+
+// CurrentThumbnailKeys returns every non-null thumbnail_key in photos.
+func (s *Store) CurrentThumbnailKeys(ctx context.Context) ([]string, error) {
+	rows, err := s.conn.QueryContext(ctx,
+		`SELECT thumbnail_key FROM photos WHERE thumbnail_key IS NOT NULL`,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []string
+	for rows.Next() {
+		var k sql.NullString
+		if err := rows.Scan(&k); err != nil {
+			return nil, err
+		}
+		if k.Valid {
+			out = append(out, k.String)
+		}
+	}
+	return out, rows.Err()
+}
+
+// ClearCatalogue removes all derived catalog rows. Used by the rebuild command;
+// application-owned tables (Spec 2+) are not touched here.
+func (s *Store) ClearCatalogue(ctx context.Context) error {
+	stmts := []string{
+		`DELETE FROM photos`,
+		`DELETE FROM albums`,
+		`DELETE FROM categories`,
+		`DELETE FROM scan_runs`,
+	}
+	for _, q := range stmts {
+		if _, err := s.conn.ExecContext(ctx, q); err != nil {
+			return fmt.Errorf("clear %q: %w", q, err)
+		}
+	}
+	return nil
+}
+
 func nullableInt(n int) sql.NullInt64 {
 	if n <= 0 {
 		return sql.NullInt64{}

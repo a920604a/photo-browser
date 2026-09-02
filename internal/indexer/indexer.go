@@ -90,6 +90,9 @@ func (idx *Indexer) Run(ctx context.Context, opts Options) (counts catalog.ScanC
 			return counts, err
 		}
 	}
+	if err := idx.reconcile(ctx, scanID, &counts); err != nil {
+		return counts, err
+	}
 	succeeded = true
 	return counts, nil
 }

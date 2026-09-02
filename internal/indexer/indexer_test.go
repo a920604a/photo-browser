@@ -263,8 +263,9 @@ func TestRunBatchBoundary(t *testing.T) {
 	if counts.New != 401 {
 		t.Fatalf("counts.New=%d want 401", counts.New)
 	}
-	if got := atomic.LoadInt32(&commits); got != 3 {
-		t.Fatalf("commits=%d want 3", got)
+	// 3 batches of 200/200/1 = 3 processing commits + 1 reconciliation commit.
+	if got := atomic.LoadInt32(&commits); got != 4 {
+		t.Fatalf("commits=%d want 4 (3 batch + 1 reconcile)", got)
 	}
 }
 
