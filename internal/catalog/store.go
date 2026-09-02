@@ -18,10 +18,20 @@ type dbtx interface {
 
 type Store struct {
 	conn dbtx
+	// TxHook, if set, is invoked once after each successful InTx commit.
+	// Intended for tests to count batch boundaries.
+	TxHook func()
 }
 
 func NewStore(db *sql.DB) *Store {
 	return &Store{conn: db}
+}
+
+// RawDB returns the underlying *sql.DB for callers that need direct access
+// (mainly reconciliation and tests). Returns nil when Store is tx-scoped.
+func (s *Store) RawDB() *sql.DB {
+	db, _ := s.conn.(*sql.DB)
+	return db
 }
 
 // InTx runs fn inside a short transaction and rolls back on error or panic.
@@ -45,6 +55,9 @@ func (s *Store) InTx(ctx context.Context, fn func(*Store) error) (err error) {
 			return
 		}
 		err = tx.Commit()
+		if err == nil && s.TxHook != nil {
+			s.TxHook()
+		}
 	}()
 	err = fn(&Store{conn: tx})
 	return err
