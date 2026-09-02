@@ -120,6 +120,45 @@ func TestRunLockBusy(t *testing.T) {
 	}
 }
 
+func TestRunAdminDispatch(t *testing.T) {
+	var seenArgs []string
+	cmds := Commands{
+		Admin: func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+			seenArgs = args
+			return 0
+		},
+		Lock: okLock,
+	}
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"admin", "list-users"}, stdout, stderr, cmds)
+	if code != 0 {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+	if len(seenArgs) != 1 || seenArgs[0] != "list-users" {
+		t.Fatalf("args=%v", seenArgs)
+	}
+}
+
+func TestRunAdminUnwired(t *testing.T) {
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"admin"}, stdout, stderr, Commands{Lock: okLock})
+	if code != 1 {
+		t.Fatalf("exit=%d want 1", code)
+	}
+}
+
+func TestRunAdminLockBusy(t *testing.T) {
+	cmds := Commands{
+		Admin: func(ctx context.Context, args []string, stdout, stderr io.Writer) int { return 0 },
+		Lock:  func() (io.Closer, error) { return nil, filelock.ErrAlreadyLocked },
+	}
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"admin", "list-users"}, stdout, stderr, cmds)
+	if code != 3 {
+		t.Fatalf("exit=%d want 3", code)
+	}
+}
+
 func TestRunRuntimeFailure(t *testing.T) {
 	cmds := Commands{
 		Index: func(ctx context.Context, o indexer.Options) error { return errors.New("disk full") },

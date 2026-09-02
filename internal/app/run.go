@@ -16,16 +16,19 @@ import (
 	"photo-browser/internal/indexer"
 	"photo-browser/internal/media"
 	"photo-browser/internal/scanner"
+	"photo-browser/internal/users"
 )
 
 const usage = `usage:
   photo-app index [--rebuild-thumbnails]
-  photo-app rebuild`
+  photo-app rebuild
+  photo-app admin <sub-command>`
 
 // Commands isolates side-effectful operations so tests can substitute fakes.
 type Commands struct {
 	Index   func(ctx context.Context, opts indexer.Options) error
 	Rebuild func(ctx context.Context) error
+	Admin   func(ctx context.Context, args []string, stdout, stderr io.Writer) int
 	Lock    func() (io.Closer, error)
 }
 
@@ -57,6 +60,24 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, cmds Comm
 			return 2
 		}
 		return runLocked(ctx, stderr, cmds, cmds.Rebuild)
+	case "admin":
+		if cmds.Admin == nil {
+			fmt.Fprintln(stderr, "admin not wired")
+			return 1
+		}
+		// admin shares the same index.lock so it can never race with a
+		// concurrent index/rebuild writing to the same SQLite file.
+		lock, err := cmds.Lock()
+		if err != nil {
+			if errors.Is(err, filelock.ErrAlreadyLocked) {
+				fmt.Fprintln(stderr, "photo-app is already running")
+				return 3
+			}
+			fmt.Fprintf(stderr, "lock: %v\n", err)
+			return 1
+		}
+		defer lock.Close()
+		return cmds.Admin(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n%s\n", args[0], usage)
 		return 2
@@ -125,6 +146,14 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				counts.Seen, counts.New, counts.Warnings)
 			return err
 		},
+		Admin: func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+			us, err := env.usersStore()
+			if err != nil {
+				fmt.Fprintf(stderr, "admin: %v\n", err)
+				return 1
+			}
+			return RunAdmin(ctx, AdminEnv{Users: us}, args, stdout, stderr)
+		},
 	}
 	return Run(ctx, args, stdout, stderr, cmds)
 }
@@ -137,6 +166,7 @@ type prodEnv struct {
 	db    *databaseHandle
 	store *catalog.Store
 	idx   *indexer.Indexer
+	users *users.Store
 }
 
 // databaseHandle wraps *sql.DB so we can close it even when store hides it.
@@ -173,6 +203,18 @@ func (env *prodEnv) close() {
 	if env.db != nil {
 		_ = env.db.closer.Close()
 	}
+}
+
+// usersStore lazily opens the DB and returns a users.Store on the shared handle.
+func (env *prodEnv) usersStore() (*users.Store, error) {
+	if env.users != nil {
+		return env.users, nil
+	}
+	if _, err := env.indexer(); err != nil {
+		return nil, err
+	}
+	env.users = users.NewStore(env.store.RawDB())
+	return env.users, nil
 }
 
 func purgeThumbnails(dir string) error {
