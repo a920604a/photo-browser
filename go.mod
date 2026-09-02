@@ -2,7 +2,11 @@ module photo-browser
 
 go 1.25.0
 
-require modernc.org/sqlite v1.58.0
+require (
+	github.com/rwcarlsen/goexif v0.0.0-20190401172101-9e8deecbddbd
+	golang.org/x/image v0.45.0
+	modernc.org/sqlite v1.58.0
+)
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
