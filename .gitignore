@@ -1,0 +1,6 @@
+.superpowers/
+test-photos/
+*.db
+*.db-shm
+*.db-wal
+thumbnails/

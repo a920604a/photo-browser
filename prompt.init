@@ -1,0 +1,550 @@
+你是一位 Principal Software Engineer / System Architect。
+
+請根據以下需求，先產出一份完整但務實的 MVP Technical Specification。不要直接開始實作程式碼。
+
+# Project Goal
+
+建立一個部署在 Synology NAS 上的「家庭照片唯讀瀏覽平台」。
+
+主要用途：
+
+* 家庭照片原始檔存在 Synology NAS
+* 家族成員沒有 NAS 帳號，也不應直接存取 DSM / SMB
+* 家族成員透過 Web Browser 登入後瀏覽照片
+* 產品體驗可參考 Synology Photos，但只做精簡 MVP
+* Frontend 可部署在 Cloudflare
+* Backend / Indexer 需保持非常輕量，因為執行環境是家用 Synology NAS
+
+這不是完整的 Synology Photos 替代品。
+
+# Core Principles
+
+1. NAS Filesystem 是照片的 Source of Truth
+2. Browser 完全 Read-only，不允許 upload / delete / rename / move
+3. Metadata DB 主要作為 Query Index
+4. Thumbnail 是 Derived Data，可以重新產生
+5. 不使用 microservices 過度設計
+6. 系統是低 QPS、Read-heavy、少量家庭使用者
+7. 優先考量：
+
+   * Simplicity
+   * Security
+   * Low resource usage
+   * Maintainability
+   * Recoverability
+8. Authentication ≠ Authorization
+9. NAS 不應直接暴露 DSM / SMB / filesystem 到 Internet
+
+# Photo Ingestion
+
+目前不做 LINE API integration。
+
+流程：
+
+LINE Album
+→ 管理者人工下載照片
+→ 人工複製到 NAS filesystem
+→ Indexer 定期掃描
+→ Metadata DB / Thumbnail 更新
+→ Browser 顯示
+
+不需要處理「同一 Album 被重複 ingest」的複雜 deduplication。
+
+如果使用者再次複製相同檔案，由 filesystem overwrite 行為處理。
+
+不做跨 Album deduplication。
+
+即使兩個 Album 有完全相同的照片，也視為兩個獨立 Photo。
+
+# Filesystem Convention
+
+固定 schema：
+
+/photos/{category}/{album}/{photo}
+
+例如：
+
+/photos/
+├── 旅遊/
+│   ├── 2025-日本旅行/
+│   │   ├── IMG001.jpg
+│   │   └── IMG002.jpg
+│   └── 2026-台南/
+├── 家庭聚會/
+│   └── 阿公生日/
+└── 其他/
+└── 未分類/
+
+Domain mapping：
+
+Level 1 Directory = Category
+Level 2 Directory = Album
+File = Photo
+
+不要支援任意深度 taxonomy。
+
+如果 Album 無法分類，放到：
+
+/photos/其他/{album}
+
+# Domain Model
+
+Category
+
+* 來源：Filesystem Level 1 directory
+
+Album
+
+* 來源：Filesystem Level 2 directory
+* 一個 Album 屬於一個 Category
+
+Photo
+
+* 來源：Album directory 內的 image file
+* 一個 Photo 屬於一個 Album
+
+關係：
+
+Category 1:N Album
+Album 1:N Photo
+
+Category 不需要 Application UI 管理。
+
+Category / Album 都由 filesystem directory 決定。
+
+# EXIF
+
+Indexer 可以讀取照片 EXIF。
+
+如果存在：
+
+DateTimeOriginal
+
+則：
+
+taken_at = EXIF DateTimeOriginal
+
+如果沒有 EXIF：
+
+taken_at = NULL
+
+不要 fallback 到 filesystem mtime 作為拍攝時間。
+
+沒有 taken_at 的照片：
+
+* 仍然可以在 Album View / All Photos 顯示
+* 不需要出現在 Timeline
+
+# Indexing Model
+
+採 Eventual Consistency。
+
+不需要 filesystem watcher。
+
+使用：
+
+* manual trigger
+* periodic scan
+
+Indexer 每次可以 walk filesystem，但不要重新處理所有照片。
+
+使用簡單 filesystem fingerprint：
+
+(path, size, mtime)
+
+Compare DB：
+
+NEW
+→ read EXIF
+→ generate thumbnail
+→ insert metadata
+
+CHANGED
+→ re-read EXIF
+→ regenerate thumbnail
+→ update metadata
+
+UNCHANGED
+→ skip
+
+MISSING
+→ remove metadata
+→ remove thumbnail
+
+第一版不要使用 SHA-256 作為必要 fingerprint。
+
+# Thumbnail
+
+MVP 必須支援 thumbnail。
+
+Thumbnail：
+
+* Derived Data
+* 可從 Original rebuild
+* 不需要多層 responsive image pipeline
+
+第一版只需要一種 thumbnail size，例如長邊約 400–600px。
+
+Album / Timeline / All Photos：
+→ 使用 thumbnail
+
+點擊 Photo Viewer：
+→ 可以查看較大圖或 Original
+
+請在 spec 中建議合理的 thumbnail 格式、quality 與 cache policy，但不要過度複雜。
+
+# Frontend UX
+
+參考 Synology Photos 的簡化版。
+
+主要 Navigation：
+
+[ Photos ] [ Albums ] [ Categories ] [ Profile ]
+
+Photos：
+
+* All Photos
+* Timeline
+* Grid View
+* Photo Viewer
+
+Albums：
+
+* 顯示所有 Album
+* Album cover
+* Album name
+* Photo count
+* 點擊後進 Photo Grid
+
+Categories：
+
+* 顯示 Category
+* Category → Album List
+* Album → Photo Grid
+
+Profile：
+
+* Firebase user information
+* Logout
+
+Timeline：
+
+* Year → Month
+* 僅使用 taken_at IS NOT NULL 的 Photo
+* ORDER BY taken_at DESC
+
+Frontend 需以 Mobile-first 為主。
+
+# Authentication
+
+使用 Firebase Authentication。
+
+可支援：
+
+* Google Login
+* Email Login
+  或其他 Firebase provider
+
+Frontend：
+→ Firebase Login
+→ Firebase ID Token
+→ Backend
+
+Backend 必須驗證 Firebase ID Token。
+
+# Authorization
+
+不是所有成功 Firebase Login 的人都能存取照片。
+
+採 allowlist。
+
+只有 Admin 預先允許的 Firebase UID 或 Email 才能進入。
+
+Flow：
+
+Firebase Login
+→ Backend verify token
+→ 取得 firebase_uid / email
+→ check allowlist
+→ allowed → access
+→ otherwise → HTTP 403
+
+第一版所有 Family Member：
+
+* 可以看全部 Category
+* 可以看全部 Album
+* 可以看全部 Photo
+
+不做：
+
+* Per Album ACL
+* Per Photo ACL
+* User Group
+* Sharing permission model
+
+Browser 是 Read-only。
+
+可以保留：
+
+role = admin | member
+
+但第一版 admin 主要只用於 allowlist 管理與 manual re-index，不允許透過 Web 修改照片 filesystem。
+
+# Deployment Architecture
+
+建議 baseline：
+
+Internet / LAN
+→ Cloudflare
+→ Cloudflare-hosted Frontend
+→ Cloudflare Tunnel
+→ Synology NAS
+
+Synology NAS：
+
+* Nginx
+* Lightweight Photo Backend
+* Indexer
+* SQLite
+* Original Photos
+* Thumbnail cache
+* cloudflared
+
+不要公開：
+
+* DSM
+* SMB
+* NAS filesystem
+* NAS management ports
+
+Cloudflare Tunnel 必須採 NAS 主動 outbound connection。
+
+Frontend 可部署在：
+
+* Cloudflare Workers Static Assets
+  或
+* Cloudflare Pages
+
+請比較後給出 MVP recommendation。
+
+# Backend Placement
+
+Baseline recommendation：
+
+Frontend → Cloudflare
+Backend → Synology NAS
+Indexer → Synology NAS
+SQLite → Synology NAS
+
+不要第一版把 Backend 全搬到 Cloudflare Workers。
+
+原因：
+
+* Source of Truth 在 NAS
+* Indexer 必須直接碰 filesystem
+* Image origin 在 NAS
+* Backend 本身低 QPS
+* 不值得為了省一個 lightweight process 引入複雜 private connectivity
+
+但請在 spec 中簡短比較：
+
+Option A:
+Cloudflare Frontend + NAS Backend
+
+Option B:
+Cloudflare Frontend + Cloudflare Backend + private NAS origin
+
+並說明 recommendation 與 trade-offs。
+
+# Image Serving
+
+不要讓 Backend 自己傳大量 image bytes。
+
+建議：
+
+Browser
+→ API authorize
+→ Backend
+→ X-Accel-Redirect
+→ Nginx
+→ NAS filesystem
+
+Nginx 使用 internal location，例如：
+
+/internal-media/
+
+外部使用者不能直接猜 URL 取得照片。
+
+Backend 負責：
+
+* Authentication
+* Authorization
+* Metadata
+* Image access authorization
+
+Nginx 負責：
+
+* Efficient image bytes serving
+
+請設計安全的 image serving flow。
+
+# Database
+
+第一版優先考慮 SQLite。
+
+不要預設 PostgreSQL。
+
+Workload：
+
+* < 20 family users
+* 10K ~ 100K+ photos
+* Read-heavy
+* Single NAS
+* Indexer 為主要 writer
+* API 幾乎都是 read
+* Low QPS
+
+請評估 SQLite 是否足夠。
+
+請設計最小 schema，至少涵蓋：
+
+users / allowlist
+categories
+albums
+photos
+index metadata
+
+請明確區分：
+
+Filesystem-derived data
+vs
+Application-owned data
+
+如果 DB 遺失：
+
+* Category / Album / Photo / EXIF index 應可由 filesystem rebuild
+* User allowlist 必須有 backup / recovery strategy
+
+# Backend Technology
+
+請比較：
+
+Option 1: Go
+Option 2: FastAPI / Python
+
+評估標準：
+
+* Synology NAS memory footprint
+* Container image size
+* EXIF ecosystem
+* Thumbnail ecosystem
+* SQLite support
+* Firebase token verification
+* Development complexity
+* Operability
+* Maintainability
+
+不要只根據開發者熟悉度下結論。
+
+最後給出一個 MVP recommendation。
+
+# Non-Goals
+
+MVP 不做：
+
+* LINE API auto ingestion
+* Upload via browser
+* Delete photo via browser
+* Rename / Move photo
+* Face recognition
+* AI classification
+* Object detection
+* Visual duplicate detection
+* Photo-level category/tag
+* Virtual Album
+* Social sharing
+* Comment
+* Like
+* Search by AI
+* Redis
+* RabbitMQ
+* Kafka
+* Celery
+* Kubernetes
+* Microservices
+* Distributed architecture
+
+# Expected Output
+
+請輸出一份 Technical Specification，至少包含：
+
+1. Executive Summary
+2. Goals
+3. Non-Goals
+4. Constraints / Assumptions
+5. Architecture Principles
+6. System Context
+7. High-Level Architecture Diagram
+8. Trust Boundaries
+9. Data Flow
+
+   * Manual ingestion flow
+   * Indexing flow
+   * Login flow
+   * Album browsing flow
+   * Timeline flow
+   * Original photo serving flow
+10. Domain Model
+11. Filesystem Schema
+12. Database Schema
+13. Indexer Design
+14. Thumbnail Strategy
+15. Backend API Design
+16. Authentication
+17. Authorization
+18. Nginx Image Serving Design
+19. Cloudflare Deployment Design
+20. Synology NAS Deployment Design
+21. Go vs FastAPI Decision
+22. SQLite Suitability Analysis
+23. Failure Modes
+24. Security Risks
+25. Backup / Recovery
+26. Observability
+27. MVP Deployment Topology
+28. Implementation Phases
+29. Acceptance Criteria
+30. Open Questions
+
+# Design Style
+
+請使用：
+
+Principle
+→ Capability
+→ Flow
+→ Boundary
+→ Component
+→ Implementation
+
+清楚區分：
+
+Fact
+Assumption
+Reasoning
+Recommendation
+
+若發現我的需求有 contradiction、hidden risk 或 over-engineering，請直接指出。
+
+不要為了完整而導入不需要的 infrastructure。
+
+優先做：
+
+* simple
+* secure
+* recoverable
+* low-maintenance
+
+最後請附上一個「Recommended MVP Stack」表格，以及一個 ASCII architecture diagram。
+
+此階段只寫 specification，不要產生 production code。
