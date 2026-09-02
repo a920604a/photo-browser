@@ -39,6 +39,15 @@ func NewRouter(d RouterDeps) http.Handler {
 
 	mux.Handle("GET /api/v1/me", authMW(http.HandlerFunc(meHandler)))
 
+	mux.Handle("GET /api/v1/categories", authMW(listCategories(d)))
+	mux.Handle("GET /api/v1/categories/{category_id}/albums", authMW(listCategoryAlbums(d)))
+	mux.Handle("GET /api/v1/albums", authMW(listAlbums(d)))
+	mux.Handle("GET /api/v1/albums/{album_id}", authMW(getAlbum(d)))
+	mux.Handle("GET /api/v1/albums/{album_id}/photos", authMW(listAlbumPhotos(d)))
+	mux.Handle("GET /api/v1/photos", authMW(listPhotos(d)))
+	mux.Handle("GET /api/v1/photos/timeline", authMW(listTimeline(d)))
+	mux.Handle("GET /api/v1/photos/{photo_id}", authMW(getPhoto(d)))
+
 	var h http.Handler = mux
 	h = WithCORS(d.Config.AllowedOrigins, h)
 	h = WithRequestID(h)
