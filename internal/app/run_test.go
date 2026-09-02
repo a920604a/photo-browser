@@ -159,6 +159,58 @@ func TestRunAdminLockBusy(t *testing.T) {
 	}
 }
 
+func TestRunServeDispatchesAndReleasesLock(t *testing.T) {
+	served := make(chan struct{}, 1)
+	cmds := Commands{
+		Serve: func(ctx context.Context, stdout, stderr io.Writer) error {
+			served <- struct{}{}
+			return nil
+		},
+		ServeLock: okLock,
+	}
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"serve"}, stdout, stderr, cmds)
+	if code != 0 {
+		t.Fatalf("exit=%d stderr=%q", code, stderr.String())
+	}
+	select {
+	case <-served:
+	default:
+		t.Fatal("Serve not called")
+	}
+}
+
+func TestRunServeUnwired(t *testing.T) {
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"serve"}, stdout, stderr, Commands{})
+	if code != 1 {
+		t.Fatalf("exit=%d want 1", code)
+	}
+}
+
+func TestRunServeExtraArg(t *testing.T) {
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"serve", "extra"}, stdout, stderr, Commands{
+		Serve:     func(ctx context.Context, stdout, stderr io.Writer) error { return nil },
+		ServeLock: okLock,
+	})
+	if code != 2 {
+		t.Fatalf("exit=%d want 2", code)
+	}
+}
+
+func TestRunServeLockBusy(t *testing.T) {
+	cmds := Commands{
+		Serve:     func(ctx context.Context, stdout, stderr io.Writer) error { return nil },
+		ServeLock: func() (io.Closer, error) { return nil, filelock.ErrAlreadyLocked },
+	}
+	stdout, stderr := &bytes.Buffer{}, &bytes.Buffer{}
+	code := Run(context.Background(), []string{"serve"}, stdout, stderr, cmds)
+	if code != 3 {
+		t.Fatalf("exit=%d want 3", code)
+	}
+}
+
 func TestRunRuntimeFailure(t *testing.T) {
 	cmds := Commands{
 		Index: func(ctx context.Context, o indexer.Options) error { return errors.New("disk full") },

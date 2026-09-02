@@ -22,14 +22,17 @@ import (
 const usage = `usage:
   photo-app index [--rebuild-thumbnails]
   photo-app rebuild
-  photo-app admin <sub-command>`
+  photo-app admin <sub-command>
+  photo-app serve`
 
 // Commands isolates side-effectful operations so tests can substitute fakes.
 type Commands struct {
-	Index   func(ctx context.Context, opts indexer.Options) error
-	Rebuild func(ctx context.Context) error
-	Admin   func(ctx context.Context, args []string, stdout, stderr io.Writer) int
-	Lock    func() (io.Closer, error)
+	Index     func(ctx context.Context, opts indexer.Options) error
+	Rebuild   func(ctx context.Context) error
+	Admin     func(ctx context.Context, args []string, stdout, stderr io.Writer) int
+	Serve     func(ctx context.Context, stdout, stderr io.Writer) error
+	Lock      func() (io.Closer, error)
+	ServeLock func() (io.Closer, error) // separate from Lock so serve can coexist with cron `index`
 }
 
 // Run dispatches args to Commands. Returns the process exit code:
@@ -78,6 +81,32 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, cmds Comm
 		}
 		defer lock.Close()
 		return cmds.Admin(ctx, args[1:], stdout, stderr)
+	case "serve":
+		if len(args) > 1 {
+			fmt.Fprintf(stderr, "serve takes no arguments\n%s\n", usage)
+			return 2
+		}
+		if cmds.Serve == nil || cmds.ServeLock == nil {
+			fmt.Fprintln(stderr, "serve not wired")
+			return 1
+		}
+		// serve.lock is separate from index.lock so a long-lived serve process
+		// doesn't block cron-scheduled `photo-app index` runs.
+		lock, err := cmds.ServeLock()
+		if err != nil {
+			if errors.Is(err, filelock.ErrAlreadyLocked) {
+				fmt.Fprintln(stderr, "photo-app serve is already running")
+				return 3
+			}
+			fmt.Fprintf(stderr, "lock: %v\n", err)
+			return 1
+		}
+		defer lock.Close()
+		if err := cmds.Serve(ctx, stdout, stderr); err != nil {
+			fmt.Fprintf(stderr, "photo-app: %v\n", err)
+			return 1
+		}
+		return 0
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n%s\n", args[0], usage)
 		return 2
@@ -119,6 +148,15 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				return nil, err
 			}
 			return filelock.Acquire(filepath.Join(cfg.DataDir, "index.lock"))
+		},
+		ServeLock: func() (io.Closer, error) {
+			if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
+				return nil, err
+			}
+			return filelock.Acquire(filepath.Join(cfg.DataDir, "serve.lock"))
+		},
+		Serve: func(ctx context.Context, stdout, stderr io.Writer) error {
+			return serveFromEnv(ctx, env, stdout, stderr)
 		},
 		Index: func(ctx context.Context, opts indexer.Options) error {
 			idx, err := env.indexer()
