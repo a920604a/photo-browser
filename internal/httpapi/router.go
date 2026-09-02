@@ -47,6 +47,8 @@ func NewRouter(d RouterDeps) http.Handler {
 	mux.Handle("GET /api/v1/photos", authMW(listPhotos(d)))
 	mux.Handle("GET /api/v1/photos/timeline", authMW(listTimeline(d)))
 	mux.Handle("GET /api/v1/photos/{photo_id}", authMW(getPhoto(d)))
+	mux.Handle("GET /api/v1/photos/{photo_id}/thumbnail/{thumbnail_key}", authMW(photoThumbnail(d)))
+	mux.Handle("GET /api/v1/photos/{photo_id}/original", authMW(photoOriginal(d)))
 
 	var h http.Handler = mux
 	h = WithCORS(d.Config.AllowedOrigins, h)
