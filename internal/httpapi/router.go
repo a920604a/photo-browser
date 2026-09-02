@@ -36,6 +36,10 @@ func NewRouter(d RouterDeps) http.Handler {
 	authMW := func(next http.Handler) http.Handler {
 		return WithAuth(d.Verifier, d.Users, next)
 	}
+	adminMW := func(next http.Handler) http.Handler {
+		return authMW(RequireRole("admin", next))
+	}
+	indexSem := make(chan struct{}, 1)
 
 	mux.Handle("GET /api/v1/me", authMW(http.HandlerFunc(meHandler)))
 
@@ -49,6 +53,12 @@ func NewRouter(d RouterDeps) http.Handler {
 	mux.Handle("GET /api/v1/photos/{photo_id}", authMW(getPhoto(d)))
 	mux.Handle("GET /api/v1/photos/{photo_id}/thumbnail/{thumbnail_key}", authMW(photoThumbnail(d)))
 	mux.Handle("GET /api/v1/photos/{photo_id}/original", authMW(photoOriginal(d)))
+
+	mux.Handle("GET /api/v1/admin/users", adminMW(listAdminUsers(d)))
+	mux.Handle("POST /api/v1/admin/users", adminMW(addAdminUser(d)))
+	mux.Handle("PATCH /api/v1/admin/users/{user_id}", adminMW(patchAdminUser(d)))
+	mux.Handle("POST /api/v1/admin/index-runs", adminMW(startIndexRun(d, indexSem)))
+	mux.Handle("GET /api/v1/admin/index-runs/{scan_id}", adminMW(getIndexRun(d)))
 
 	var h http.Handler = mux
 	h = WithCORS(d.Config.AllowedOrigins, h)
