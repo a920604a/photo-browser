@@ -39,13 +39,21 @@ func ThumbnailKey(photoID, mtimeNS, size int64) string {
 	return fmt.Sprintf("%d-%d-%d", photoID, mtimeNS, size)
 }
 
-// Run performs one full scan cycle. The caller receives counts even on error.
-func (idx *Indexer) Run(ctx context.Context, opts Options) (counts catalog.ScanCounts, runErr error) {
-	now := idx.now()
-	scanID, err := idx.Store.StartScan(ctx, now)
+// Run performs one full scan cycle: allocates a new scan_run row then delegates
+// to RunWithScanID. The caller receives counts even on error.
+func (idx *Indexer) Run(ctx context.Context, opts Options) (catalog.ScanCounts, error) {
+	scanID, err := idx.Store.StartScan(ctx, idx.now())
 	if err != nil {
-		return counts, err
+		return catalog.ScanCounts{}, err
 	}
+	return idx.RunWithScanID(ctx, scanID, opts)
+}
+
+// RunWithScanID executes the scan against an already-reserved scan_run row.
+// The admin HTTP handler uses this so it can reply 202 with the scan_id
+// before background work starts.
+func (idx *Indexer) RunWithScanID(ctx context.Context, scanID int64, opts Options) (counts catalog.ScanCounts, runErr error) {
+	now := idx.now()
 	succeeded := false
 	defer func() {
 		status := "failed"

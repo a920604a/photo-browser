@@ -1,0 +1,46 @@
+services:
+  testauth:
+    image: photo-browser-api-acceptance
+    command: ["/usr/local/bin/testauth"]
+    environment:
+      MINT_ISSUER: https://securetoken.google.com/demo-proj
+      MINT_AUDIENCE: demo-proj
+      LISTEN: ":8090"
+    ports:
+      - "8090:8090"
+
+  backend:
+    image: photo-browser-api-acceptance
+    command: ["/usr/local/bin/photo-app", "serve"]
+    environment:
+      PHOTO_ROOT: /srv/photos
+      DATA_DIR: /srv/data
+      THUMBNAIL_DIR: /srv/thumbnails
+      HTTP_LISTEN: ":8080"
+      FIREBASE_PROJECT_ID: demo-proj
+      FIREBASE_JWKS_URL: http://testauth:8090/jwks
+      ALLOWED_ORIGINS: http://frontend.local
+      INTERNAL_MEDIA_ORIGINALS: /internal-media/originals
+      INTERNAL_MEDIA_THUMBNAILS: /internal-media/thumbnails
+    volumes:
+      - ${PHOTO_FIXTURES:-../../test-photos}:/srv/photos:ro
+      - photo-data:/srv/data
+      - photo-thumbs:/srv/thumbnails
+    depends_on:
+      - testauth
+
+  nginx:
+    image: nginx:latest
+    pull_policy: missing
+    volumes:
+      - ../../deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${PHOTO_FIXTURES:-../../test-photos}:/srv/photos:ro
+      - photo-thumbs:/srv/thumbnails:ro
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+volumes:
+  photo-data:
+  photo-thumbs:

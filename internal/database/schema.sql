@@ -66,3 +66,21 @@ CREATE INDEX IF NOT EXISTS idx_photos_taken
 
 CREATE INDEX IF NOT EXISTS idx_albums_category_name
   ON albums(category_id, name);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY,
+  firebase_uid TEXT,
+  email TEXT,
+  normalized_email TEXT,
+  role TEXT NOT NULL CHECK(role IN ('admin','member')),
+  enabled INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  CHECK(firebase_uid IS NOT NULL OR normalized_email IS NOT NULL)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_firebase_uid
+  ON users(firebase_uid) WHERE firebase_uid IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_normalized_email
+  ON users(normalized_email) WHERE normalized_email IS NOT NULL;

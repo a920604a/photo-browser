@@ -1,4 +1,4 @@
-.PHONY: test build acceptance
+.PHONY: test build acceptance api-acceptance
 
 test:
 	docker build --target test -t photo-browser-test .
@@ -14,3 +14,7 @@ acceptance:
 	  -v "$(CURDIR)/scripts:/scripts:ro" \
 	  photo-browser-acceptance \
 	  bash /scripts/acceptance.sh
+
+api-acceptance:
+	docker build --target api-acceptance -t photo-browser-api-acceptance .
+	bash scripts/acceptance_api.sh

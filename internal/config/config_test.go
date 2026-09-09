@@ -11,6 +11,7 @@ func TestLoadRequiresAbsolutePaths(t *testing.T) {
 		t.Setenv("PHOTO_ROOT", tc.photos)
 		t.Setenv("DATA_DIR", tc.data)
 		t.Setenv("THUMBNAIL_DIR", tc.thumbs)
+		t.Setenv("ALLOWED_ORIGINS", "")
 		if _, err := Load(); err == nil {
 			t.Fatalf("Load(%q, %q, %q) succeeded", tc.photos, tc.data, tc.thumbs)
 		}
@@ -21,11 +22,79 @@ func TestLoadDefaults(t *testing.T) {
 	t.Setenv("PHOTO_ROOT", "")
 	t.Setenv("DATA_DIR", "")
 	t.Setenv("THUMBNAIL_DIR", "")
+	t.Setenv("HTTP_LISTEN", "")
+	t.Setenv("FIREBASE_PROJECT_ID", "")
+	t.Setenv("FIREBASE_ISSUER", "")
+	t.Setenv("FIREBASE_JWKS_URL", "")
+	t.Setenv("ALLOWED_ORIGINS", "")
+	t.Setenv("INTERNAL_MEDIA_ORIGINALS", "")
+	t.Setenv("INTERNAL_MEDIA_THUMBNAILS", "")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if cfg.PhotoRoot != "/photos" || cfg.DataDir != "/data" || cfg.ThumbnailDir != "/thumbnails" {
-		t.Fatalf("unexpected defaults: %+v", cfg)
+		t.Fatalf("unexpected paths: %+v", cfg)
+	}
+	if cfg.HTTPListen != ":8080" {
+		t.Fatalf("HTTPListen=%q", cfg.HTTPListen)
+	}
+	if cfg.FirebaseJWKSURL == "" {
+		t.Fatal("FirebaseJWKSURL default empty")
+	}
+	if cfg.InternalOriginals != "/internal-media/originals" ||
+		cfg.InternalThumbnails != "/internal-media/thumbnails" {
+		t.Fatalf("internal paths=%+v", cfg)
+	}
+	if len(cfg.AllowedOrigins) != 0 {
+		t.Fatalf("AllowedOrigins default nonempty: %v", cfg.AllowedOrigins)
+	}
+}
+
+func TestLoadDerivesFirebaseIssuer(t *testing.T) {
+	t.Setenv("PHOTO_ROOT", "/photos")
+	t.Setenv("DATA_DIR", "/data")
+	t.Setenv("THUMBNAIL_DIR", "/thumbnails")
+	t.Setenv("FIREBASE_PROJECT_ID", "demo-proj")
+	t.Setenv("FIREBASE_ISSUER", "")
+	t.Setenv("ALLOWED_ORIGINS", "https://photos.example.com , https://alt.example.com")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.FirebaseIssuer != "https://securetoken.google.com/demo-proj" {
+		t.Fatalf("issuer=%q", cfg.FirebaseIssuer)
+	}
+	if len(cfg.AllowedOrigins) != 2 ||
+		cfg.AllowedOrigins[0] != "https://photos.example.com" ||
+		cfg.AllowedOrigins[1] != "https://alt.example.com" {
+		t.Fatalf("origins=%v", cfg.AllowedOrigins)
+	}
+}
+
+func TestLoadRejectsWildcardOrigin(t *testing.T) {
+	t.Setenv("PHOTO_ROOT", "/photos")
+	t.Setenv("DATA_DIR", "/data")
+	t.Setenv("THUMBNAIL_DIR", "/thumbnails")
+	t.Setenv("FIREBASE_PROJECT_ID", "demo-proj")
+	t.Setenv("ALLOWED_ORIGINS", "*")
+	if _, err := Load(); err == nil {
+		t.Fatal("wildcard origin must be rejected")
+	}
+}
+
+func TestLoadRespectsExplicitIssuerOverride(t *testing.T) {
+	t.Setenv("PHOTO_ROOT", "/photos")
+	t.Setenv("DATA_DIR", "/data")
+	t.Setenv("THUMBNAIL_DIR", "/thumbnails")
+	t.Setenv("FIREBASE_PROJECT_ID", "demo-proj")
+	t.Setenv("FIREBASE_ISSUER", "https://issuer.override.example")
+	t.Setenv("ALLOWED_ORIGINS", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.FirebaseIssuer != "https://issuer.override.example" {
+		t.Fatalf("issuer override lost: %q", cfg.FirebaseIssuer)
 	}
 }
