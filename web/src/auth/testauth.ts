@@ -75,14 +75,26 @@ export class TestAuthProvider implements AuthProvider {
   }
 
   private async mint(u: DevUser): Promise<string> {
-    const url = new URL(this.opts.url);
-    url.pathname = "/mint";
+    const url = new URL("mint", this.baseUrl());
     url.searchParams.set("sub", u.uid);
     url.searchParams.set("email", u.email);
     url.searchParams.set("verified", "1");
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error(`testauth mint failed: ${res.status}`);
     return (await res.text()).trim();
+  }
+
+  /**
+   * The configured URL may be absolute (http://localhost:8090) or a same-origin
+   * proxy path (/testauth) — the latter avoids CORS, since testauth serves no
+   * CORS headers. Either way the result ends in a slash so "mint" resolves
+   * underneath it rather than replacing the last segment.
+   */
+  private baseUrl(): URL {
+    const here = globalThis.location?.href ?? "http://localhost/";
+    const base = new URL(this.opts.url || "/", here);
+    if (!base.pathname.endsWith("/")) base.pathname += "/";
+    return base;
   }
 
   /** Treats a token expiring within the skew window as already expired. */

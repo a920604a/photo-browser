@@ -95,6 +95,30 @@ test("init drops an expired stored session", async () => {
   expect(states).toEqual(["signed-out"]);
 });
 
+test("mints against an absolute base url", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(new Response(mintJwt(Math.floor(now / 1000) + 3600)));
+  globalThis.fetch = fetchMock as never;
+  const p = new TestAuthProvider({ url: "http://ta:8090", devUsers });
+  await p.init();
+  await p.signIn("admin-1");
+  expect(fetchMock.mock.calls[0][0]).toBe("http://ta:8090/mint?sub=admin-1&email=a%40x&verified=1");
+});
+
+test("mints against a same-origin proxy path", async () => {
+  const fetchMock = vi
+    .fn()
+    .mockResolvedValue(new Response(mintJwt(Math.floor(now / 1000) + 3600)));
+  globalThis.fetch = fetchMock as never;
+  const p = new TestAuthProvider({ url: "/testauth", devUsers });
+  await p.init();
+  await p.signIn("admin-1");
+  expect(fetchMock.mock.calls[0][0]).toBe(
+    `${location.origin}/testauth/mint?sub=admin-1&email=a%40x&verified=1`,
+  );
+});
+
 test("signIn with an unknown uid rejects", async () => {
   const p = new TestAuthProvider({ url: "http://ta", devUsers });
   await p.init();
