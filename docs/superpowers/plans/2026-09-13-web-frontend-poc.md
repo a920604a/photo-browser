@@ -37,11 +37,11 @@
 - Consumes: nothing new
 - Produces: `albumDTO.cover_photo_id int64 json:"cover_photo_id,omitempty"`（0 時 omit）；`catalog.Store.AlbumCover(ctx, albumID) (photoID int64, key string, ok bool, err error)`。
 
-- [ ] **Step 1: 讀現況**
+- [x] **Step 1: 讀現況**
 
 先讀 `internal/catalog/query.go:187-202`（`AlbumCoverThumbnail`）與 `internal/httpapi/catalog.go:14-22, 170-185`（`albumDTO` + 塞 cover 的位置）。
 
-- [ ] **Step 2: 改 test — query 層**
+- [x] **Step 2: 改 test — query 層**
 
 修改 `internal/catalog/query_test.go` 中所有呼叫 `AlbumCoverThumbnail` 的地方，換成 `AlbumCover`；斷言同時檢查回傳的 photo_id 對應到 album 內 `taken_at DESC NULLS LAST, id DESC` 排序後第一張。
 
@@ -53,7 +53,7 @@ require.Equal(t, expectedPhotoID, photoID)
 require.Equal(t, "abc123.webp-key", key)
 ```
 
-- [ ] **Step 3: 跑 test 確認失敗**
+- [x] **Step 3: 跑 test 確認失敗**
 
 ```
 make test 2>&1 | grep -E "FAIL|undefined"
@@ -61,7 +61,7 @@ make test 2>&1 | grep -E "FAIL|undefined"
 
 期望：`AlbumCover undefined`。
 
-- [ ] **Step 4: 實作 query.go**
+- [x] **Step 4: 實作 query.go**
 
 ```go
 // AlbumCover returns the photo_id + thumbnail_key of the album's cover photo:
@@ -88,7 +88,7 @@ func (s *Store) AlbumCover(ctx context.Context, albumID int64) (int64, string, b
 
 刪掉舊的 `AlbumCoverThumbnail`。
 
-- [ ] **Step 5: 改 DTO 與所有塞 cover 的地方**
+- [x] **Step 5: 改 DTO 與所有塞 cover 的地方**
 
 在 `internal/httpapi/catalog.go`：
 
@@ -112,7 +112,7 @@ if pid, key, ok, err := d.Catalog.AlbumCover(r.Context(), id); err == nil && ok 
 }
 ```
 
-- [ ] **Step 6: 改 httpapi test 加對 cover_photo_id 的斷言**
+- [x] **Step 6: 改 httpapi test 加對 cover_photo_id 的斷言**
 
 `internal/httpapi/catalog_test.go` 三個涉及 album 的 test 加：
 
@@ -123,7 +123,7 @@ assert.NotEmpty(t, resp.Albums[0].CoverThumbnailKey)
 
 （實際欄位名以 struct/json 為準。）
 
-- [ ] **Step 7: 跑 test 確認全綠**
+- [x] **Step 7: 跑 test 確認全綠**
 
 ```
 make test 2>&1 | tail -20
@@ -131,7 +131,7 @@ make test 2>&1 | tail -20
 
 期望：全部 `ok`。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add internal/httpapi/catalog.go internal/httpapi/catalog_test.go internal/catalog/query.go internal/catalog/query_test.go
@@ -165,7 +165,7 @@ git commit -m "feat: expose album cover_photo_id for frontend thumbnail url"
 - Consumes: 無
 - Produces: `web/` 可 `npm ci`、`npm run dev`、`npm run build`、`npm run test`（Vitest）跑起來（但 test 尚無 case）；Vite dev proxy `/api` 與 `/media` 到 `http://localhost:8081`。
 
-- [ ] **Step 1: 建 `.nvmrc` 與根 `.gitignore` 補丁**
+- [x] **Step 1: 建 `.nvmrc` 與根 `.gitignore` 補丁**
 
 `web/.nvmrc`：
 
@@ -186,7 +186,7 @@ web/.env.local
 
 如果 root 沒有 `.gitignore`，建立一個並加上上面內容。
 
-- [ ] **Step 2: `web/package.json`**
+- [x] **Step 2: `web/package.json`**
 
 ```json
 {
@@ -229,7 +229,7 @@ web/.env.local
 }
 ```
 
-- [ ] **Step 3: `web/tsconfig.json` + `tsconfig.node.json`**
+- [x] **Step 3: `web/tsconfig.json` + `tsconfig.node.json`**
 
 `web/tsconfig.json`：
 
@@ -274,7 +274,7 @@ web/.env.local
 }
 ```
 
-- [ ] **Step 4: `web/vite.config.ts`**
+- [x] **Step 4: `web/vite.config.ts`**
 
 ```ts
 import { defineConfig } from "vite";
@@ -303,7 +303,7 @@ export default defineConfig({
 });
 ```
 
-- [ ] **Step 5: Tailwind + PostCSS**
+- [x] **Step 5: Tailwind + PostCSS**
 
 `web/tailwind.config.ts`：
 
@@ -333,7 +333,7 @@ export default {
 };
 ```
 
-- [ ] **Step 6: `web/index.html`**
+- [x] **Step 6: `web/index.html`**
 
 ```html
 <!doctype html>
@@ -352,7 +352,7 @@ export default {
 </html>
 ```
 
-- [ ] **Step 7: `web/.env.example` + `.env.local`**
+- [x] **Step 7: `web/.env.example` + `.env.local`**
 
 `.env.example`（committed）：
 
@@ -376,7 +376,7 @@ VITE_FIREBASE_APP_ID=
 
 `.env.local`（gitignored）先複製一份 `.env.example` 內容即可。
 
-- [ ] **Step 8: `src/main.tsx` + `src/App.tsx` + `src/styles/globals.css` + `src/lib/env.ts` + `src/test-setup.ts`**
+- [x] **Step 8: `src/main.tsx` + `src/App.tsx` + `src/styles/globals.css` + `src/lib/env.ts` + `src/test-setup.ts`**
 
 `src/styles/globals.css`：
 
@@ -451,7 +451,7 @@ function parseDevUsers(raw: string | undefined): DevUser[] {
 import "@testing-library/jest-dom/vitest";
 ```
 
-- [ ] **Step 9: `web/README.md`**
+- [x] **Step 9: `web/README.md`**
 
 ```markdown
 # Photo Browser Web
@@ -478,7 +478,7 @@ npm run dev              # 本 terminal，Vite dev server on :5173
 複製 `.env.example` → `.env.local`。POC 本機用 `VITE_AUTH_MODE=testauth`。
 ```
 
-- [ ] **Step 10: 建目錄骨架（空 folder 也 commit stub）**
+- [x] **Step 10: 建目錄骨架（空 folder 也 commit stub）**
 
 ```bash
 mkdir -p web/src/{auth,api,media,components/{layout,grid,viewer,states,ui},hooks,routes} web/tests/e2e web/public
@@ -490,7 +490,7 @@ mkdir -p web/src/{auth,api,media,components/{layout,grid,viewer,states,ui},hooks
 touch web/src/auth/.gitkeep web/src/api/.gitkeep web/src/media/.gitkeep web/src/components/{layout,grid,viewer,states,ui}/.gitkeep web/src/hooks/.gitkeep web/src/routes/.gitkeep web/tests/e2e/.gitkeep web/public/.gitkeep
 ```
 
-- [ ] **Step 11: `npm ci` 驗證**
+- [x] **Step 11: `npm ci` 驗證**
 
 ```bash
 cd web && npm install     # 首次生成 package-lock.json
@@ -501,7 +501,7 @@ cd ..
 
 期望：build 成功，dist 產出；test 通過（no test files）。
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 git add web/ .gitignore
@@ -521,7 +521,7 @@ git commit -m "chore: scaffold web/ vite+react+ts+tailwind project"
 - Consumes: `photo-browser-api-acceptance` image（既有 Dockerfile 已有 `api-acceptance` target）
 - Produces: `docker compose -f deploy/compose/docker-compose.dev.yml up`（從 repo root）啟動 nginx :8081、backend :8080（內部）、testauth :8090；backend 啟動時自動 (a) 跑一次 `photo-app index`、(b) `photo-app admin add-user` 塞 3 個 dev user（admin/member/denied）。
 
-- [ ] **Step 1: `dev-users.json`**
+- [x] **Step 1: `dev-users.json`**
 
 ```json
 [
@@ -532,7 +532,7 @@ git commit -m "chore: scaffold web/ vite+react+ts+tailwind project"
 
 **注意**：`denied-1` 故意不加入 allowlist，用來測 403。
 
-- [ ] **Step 2: `dev-entrypoint.sh`**
+- [x] **Step 2: `dev-entrypoint.sh`**
 
 ```sh
 #!/usr/bin/env sh
@@ -574,7 +574,7 @@ done
 
 實作時**先跑 `docker run --rm photo-browser-api-acceptance which python3`** 確認；沒有的話 Task 3 加一步在 image 裡裝 python3（Dockerfile `api-acceptance` stage 加 `apt-get install -y python3`），或改用 pure shell parser。優先加 python3 到 image，維護較單純。
 
-- [ ] **Step 3: 若需要，改 Dockerfile `api-acceptance` stage**
+- [x] **Step 3: 若需要，改 Dockerfile `api-acceptance` stage**
 
 檢查 `Dockerfile` 有無 `api-acceptance` target；若無 `python3`：
 
@@ -585,7 +585,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends python3 && rm -
 
 （依實際 Dockerfile 結構調整。）
 
-- [ ] **Step 4: `docker-compose.dev.yml`**
+- [x] **Step 4: `docker-compose.dev.yml`**
 
 ```yaml
 services:
@@ -638,7 +638,7 @@ volumes:
   photo-thumbs-dev:
 ```
 
-- [ ] **Step 5: 手動驗證 stack 起得來**
+- [x] **Step 5: 手動驗證 stack 起得來**
 
 ```bash
 docker build --target api-acceptance -t photo-browser-api-acceptance .
@@ -649,7 +649,7 @@ docker compose -f deploy/compose/docker-compose.dev.yml logs backend --tail=30
 
 期望：能看到 `indexing`、`bootstrapping dev users`、`serving on :8080`。若失敗，看 log 修 entrypoint。
 
-- [ ] **Step 6: 用 curl 打幾個 endpoint 冒煙**
+- [x] **Step 6: 用 curl 打幾個 endpoint 冒煙**
 
 ```bash
 TOKEN=$(curl -s "http://localhost:8090/mint?sub=admin-1&email=admin@example.com&verified=1")
@@ -659,7 +659,7 @@ curl -H "Authorization: Bearer $TOKEN" http://localhost:8081/api/v1/categories
 
 期望：`/me` 回 200 + role=admin；`/categories` 回 200 + 有資料。
 
-- [ ] **Step 7: 停 stack**
+- [x] **Step 7: 停 stack**
 
 ```bash
 docker compose -f deploy/compose/docker-compose.dev.yml down
@@ -667,7 +667,7 @@ docker compose -f deploy/compose/docker-compose.dev.yml down
 
 （volume 保留供後續 dev 循環快取用）。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add deploy/compose/docker-compose.dev.yml deploy/compose/dev-entrypoint.sh deploy/compose/dev-users.json Dockerfile
@@ -684,7 +684,7 @@ git commit -m "feat: docker-compose dev stack with auto index and allowlist seed
 **Interfaces:**
 - Produces: `make dev-web-stack` / `make dev-web-stack-down` / `make test-web` / `make e2e-web` / `make build-web` / `make bundle-guard`。
 
-- [ ] **Step 1: 加 target**
+- [x] **Step 1: 加 target**
 
 在 `Makefile` 尾端加：
 
@@ -719,7 +719,7 @@ e2e-web:
 	$(MAKE) dev-web-stack-down
 ```
 
-- [ ] **Step 2: 冒煙 make target**
+- [x] **Step 2: 冒煙 make target**
 
 ```bash
 make dev-web-stack
@@ -731,7 +731,7 @@ make test-web
 
 期望：`/health/live` 回 200；`test-web` 通過（0 test）。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add Makefile
@@ -753,7 +753,7 @@ git commit -m "chore: make targets for web dev/test/e2e/build/bundle-guard"
   - `interface AuthProvider { init(); onChange(cb); signIn(); signOut(); getIdToken(force?); }`
   - `<AuthContextProvider value={provider}>` React component + `useAuth()` hook 回傳 `{ state, provider }`
 
-- [ ] **Step 1: `provider.ts`**
+- [x] **Step 1: `provider.ts`**
 
 ```ts
 export type AuthState =
@@ -775,7 +775,7 @@ export interface AuthProvider {
 }
 ```
 
-- [ ] **Step 2: test — `context.test.tsx`**
+- [x] **Step 2: test — `context.test.tsx`**
 
 ```tsx
 import { render, screen, act } from "@testing-library/react";
@@ -819,7 +819,7 @@ test("mirrors provider state transitions", async () => {
 });
 ```
 
-- [ ] **Step 3: 跑 test 確認失敗**
+- [x] **Step 3: 跑 test 確認失敗**
 
 ```
 cd web && npm run test 2>&1 | tail -10
@@ -827,7 +827,7 @@ cd web && npm run test 2>&1 | tail -10
 
 期望：`AuthContextProvider` / `useAuth` 未定義。
 
-- [ ] **Step 4: `context.tsx`**
+- [x] **Step 4: `context.tsx`**
 
 ```tsx
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
@@ -864,13 +864,13 @@ export function useAuth(): Ctx {
 }
 ```
 
-- [ ] **Step 5: 跑 test 確認通過**
+- [x] **Step 5: 跑 test 確認通過**
 
 ```
 cd web && npm run test
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/src/auth/
@@ -889,7 +889,7 @@ git commit -m "feat(web): auth provider interface and react context"
 - Consumes: `AuthProvider`, `AuthState`（Task 5）；`env.testAuthUrl`, `env.devUsers`（Task 2）
 - Produces: `class TestAuthProvider implements AuthProvider`；`signIn(uid: string)` 拿指定 dev user；token 存 `sessionStorage['ta.token']`；`getIdToken(true)` 呼 `/mint` 重拿。
 
-- [ ] **Step 1: test**
+- [x] **Step 1: test**
 
 ```ts
 import { TestAuthProvider } from "./testauth";
@@ -959,13 +959,13 @@ test("signOut clears storage and emits signed-out", async () => {
 });
 ```
 
-- [ ] **Step 2: 跑 test 確認失敗**
+- [x] **Step 2: 跑 test 確認失敗**
 
 ```
 cd web && npm run test testauth 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: 實作 `testauth.ts`**
+- [x] **Step 3: 實作 `testauth.ts`**
 
 ```ts
 import type { AuthProvider, AuthState } from "./provider";
@@ -1070,13 +1070,13 @@ export class TestAuthProvider implements AuthProvider {
 }
 ```
 
-- [ ] **Step 4: 跑 test 通過**
+- [x] **Step 4: 跑 test 通過**
 
 ```
 cd web && npm run test testauth
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add web/src/auth/testauth.ts web/src/auth/testauth.test.ts
@@ -1095,7 +1095,7 @@ git commit -m "feat(web): TestAuthProvider backed by testauth /mint"
 - Consumes: `AuthProvider`, `AuthState`；`env.firebase`
 - Produces: `class FirebaseAuthProvider implements AuthProvider`；用 modular Firebase SDK；`signInWithPopup(GoogleAuthProvider)`；`onIdTokenChanged` 是唯一 state 來源；`getIdToken(true)` 呼 SDK `user.getIdToken(true)`。
 
-- [ ] **Step 1: test（mock 掉 Firebase SDK）**
+- [x] **Step 1: test（mock 掉 Firebase SDK）**
 
 ```ts
 import { FirebaseAuthProvider } from "./firebase";
@@ -1159,13 +1159,13 @@ test("getIdToken(true) forces refresh", async () => {
 });
 ```
 
-- [ ] **Step 2: 跑 test 確認失敗**
+- [x] **Step 2: 跑 test 確認失敗**
 
 ```
 cd web && npm run test firebase 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: 實作 `firebase.ts`**
+- [x] **Step 3: 實作 `firebase.ts`**
 
 ```ts
 import { initializeApp, type FirebaseApp } from "firebase/app";
@@ -1227,13 +1227,13 @@ export class FirebaseAuthProvider implements AuthProvider {
 }
 ```
 
-- [ ] **Step 4: 跑 test 通過**
+- [x] **Step 4: 跑 test 通過**
 
 ```
 cd web && npm run test firebase
 ```
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add web/src/auth/firebase.ts web/src/auth/firebase.test.ts
@@ -1253,7 +1253,7 @@ git commit -m "feat(web): FirebaseAuthProvider with modular sdk + popup sign-in"
 - Consumes: `env.authMode`, `env.testAuthUrl`, `env.devUsers`, `env.firebase`；`TestAuthProvider`, `FirebaseAuthProvider`
 - Produces: `makeAuthProvider(): AuthProvider`；`<App/>` 包 `<AuthContextProvider>`。
 
-- [ ] **Step 1: `select.ts`**
+- [x] **Step 1: `select.ts`**
 
 ```ts
 import type { AuthProvider } from "./provider";
@@ -1330,7 +1330,7 @@ export async function makeAuthProvider(): Promise<AuthProvider> {
 
 動態 import + Vite 的 build-time env replacement 會讓對應的 chunk 只在 matching branch 才 emit——**Task 22 的 bundle guard 會實測驗證**。用 async 版本。
 
-- [ ] **Step 2: 改 `App.tsx` + `main.tsx`**
+- [x] **Step 2: 改 `App.tsx` + `main.tsx`**
 
 `web/src/App.tsx`：
 
@@ -1358,7 +1358,7 @@ export function App() {
 }
 ```
 
-- [ ] **Step 3: 冒煙**
+- [x] **Step 3: 冒煙**
 
 ```bash
 cd web && npm run test && npm run build
@@ -1366,7 +1366,7 @@ cd web && npm run test && npm run build
 
 期望：build 成功；test 綠。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add web/src/auth/select.ts web/src/App.tsx
@@ -1390,7 +1390,7 @@ git commit -m "feat(web): build-time auth adapter selection via dynamic import"
   - `makeApi(auth: AuthProvider, baseUrl: string): ApiClient`
   - 行為：Auth header、`X-Request-Id` capture、401 → `getIdToken(true)` 重打一次；envelope error 解析為 `ApiError`；403 直接丟 `ApiError`（不 retry）；network / 5xx 丟一般 `Error`。
 
-- [ ] **Step 1: `types.ts`**
+- [x] **Step 1: `types.ts`**
 
 ```ts
 export type Category = { id: number; name: string; relative_path: string };
@@ -1427,7 +1427,7 @@ export type Me = { uid: string; email: string | null; role: "admin" | "member" }
 export type ErrorEnvelope = { code: string; message: string; request_id?: string };
 ```
 
-- [ ] **Step 2: test — `client.test.ts`**
+- [x] **Step 2: test — `client.test.ts`**
 
 ```ts
 import { makeApi, ApiError } from "./client";
@@ -1501,13 +1501,13 @@ test("getBlob returns Blob for 200", async () => {
 });
 ```
 
-- [ ] **Step 3: 跑失敗**
+- [x] **Step 3: 跑失敗**
 
 ```
 cd web && npm run test api/client 2>&1 | tail -10
 ```
 
-- [ ] **Step 4: `client.ts`**
+- [x] **Step 4: `client.ts`**
 
 ```ts
 import type { AuthProvider } from "../auth/provider";
@@ -1563,13 +1563,13 @@ async function toApiError(res: Response): Promise<ApiError> {
 }
 ```
 
-- [ ] **Step 5: 跑通過**
+- [x] **Step 5: 跑通過**
 
 ```
 cd web && npm run test api/client
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/src/api/types.ts web/src/api/client.ts web/src/api/client.test.ts
@@ -1592,7 +1592,7 @@ git commit -m "feat(web): api client with bearer, 401 retry, envelope errors"
   - `useMe()`, `useCategories()`, `useCategory(id)`, `useAlbums(opts)`, `useAlbum(id)`, `usePhotos(opts)`, `useAlbumPhotos(albumId)`, `useTimeline()`
   - Cursor 用 `useInfiniteQuery`；`getNextPageParam: (last) => last.next_cursor ?? undefined`。
 
-- [ ] **Step 1: 建 `ApiProvider` + `useApi` + query key 工廠**
+- [x] **Step 1: 建 `ApiProvider` + `useApi` + query key 工廠**
 
 在 `web/src/api/context.tsx` 建：
 
@@ -1610,7 +1610,7 @@ export function useApi(): ApiClient {
 }
 ```
 
-- [ ] **Step 2: `queries.ts`**
+- [x] **Step 2: `queries.ts`**
 
 ```ts
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
@@ -1702,7 +1702,7 @@ export function useTimeline() {
 }
 ```
 
-- [ ] **Step 3: test — `queries.test.tsx`（挑一個 hook 做 sanity）**
+- [x] **Step 3: test — `queries.test.tsx`（挑一個 hook 做 sanity）**
 
 ```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -1738,7 +1738,7 @@ test("useAllPhotos aggregates pages", async () => {
 });
 ```
 
-- [ ] **Step 4: 改 `App.tsx` 加 QueryClient + ApiProvider**
+- [x] **Step 4: 改 `App.tsx` 加 QueryClient + ApiProvider**
 
 ```tsx
 import { useEffect, useMemo, useState } from "react";
@@ -1788,13 +1788,13 @@ function isTerminalStatus(e: unknown): boolean {
 }
 ```
 
-- [ ] **Step 5: 跑 test + build**
+- [x] **Step 5: 跑 test + build**
 
 ```
 cd web && npm run test && npm run build
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add web/src/api/context.tsx web/src/api/queries.ts web/src/api/queries.test.tsx web/src/App.tsx
@@ -1818,7 +1818,7 @@ git commit -m "feat(web): tanstack query hooks for catalog api"
   - `useAuthedImage(url): { state: "loading" | "ready" | "error"; objectUrl?; kind? }`。
   - `MediaProvider` + `useMedia()`：讓 `<AppShell>` 提供單一 cache 實例。
 
-- [ ] **Step 1: test — `blob-cache.test.ts`**
+- [x] **Step 1: test — `blob-cache.test.ts`**
 
 ```ts
 import { BlobCache } from "./blob-cache";
@@ -1892,13 +1892,13 @@ test("concurrency limit gates parallel fetches", async () => {
 });
 ```
 
-- [ ] **Step 2: 跑失敗**
+- [x] **Step 2: 跑失敗**
 
 ```
 cd web && npm run test blob-cache 2>&1 | tail -10
 ```
 
-- [ ] **Step 3: `blob-cache.ts`**
+- [x] **Step 3: `blob-cache.ts`**
 
 ```ts
 import type { ApiClient } from "../api/client";
@@ -2001,13 +2001,13 @@ export class BlobCache {
 }
 ```
 
-- [ ] **Step 4: 跑通過**
+- [x] **Step 4: 跑通過**
 
 ```
 cd web && npm run test blob-cache
 ```
 
-- [ ] **Step 5: `hooks.ts`（含 MediaProvider）**
+- [x] **Step 5: `hooks.ts`（含 MediaProvider）**
 
 ```tsx
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
@@ -2056,7 +2056,7 @@ export function useAuthedImage(path: string | null): State {
 }
 ```
 
-- [ ] **Step 6: test — `hooks.test.tsx`**
+- [x] **Step 6: test — `hooks.test.tsx`**
 
 ```tsx
 import { render, screen, waitFor } from "@testing-library/react";
@@ -2082,13 +2082,13 @@ test("resolves to ready", async () => {
 });
 ```
 
-- [ ] **Step 7: 跑全部通過**
+- [x] **Step 7: 跑全部通過**
 
 ```
 cd web && npm run test
 ```
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add web/src/media/
@@ -2114,7 +2114,7 @@ git commit -m "feat(web): authed media blob cache + useAuthedImage hook"
 **Interfaces:**
 - Produces：路由 tree（跟 spec §6 對齊）；`ProtectedShell` 依 `AuthState + useMe()` 顯示 loading / login redirect / forbidden redirect / `<Outlet />`。
 
-- [ ] **Step 1: 狀態 component（先寫好給後續用）**
+- [x] **Step 1: 狀態 component（先寫好給後續用）**
 
 `Loading.tsx`：
 
@@ -2171,7 +2171,7 @@ export function ErrorPanel({ kind, onRetry }: Props) {
 }
 ```
 
-- [ ] **Step 2: `BottomNav.tsx`**
+- [x] **Step 2: `BottomNav.tsx`**
 
 ```tsx
 import { NavLink } from "react-router-dom";
@@ -2206,7 +2206,7 @@ export function BottomNav() {
 }
 ```
 
-- [ ] **Step 3: `Header.tsx`**
+- [x] **Step 3: `Header.tsx`**
 
 ```tsx
 export function Header({ title }: { title: string }) {
@@ -2218,7 +2218,7 @@ export function Header({ title }: { title: string }) {
 }
 ```
 
-- [ ] **Step 4: `AppShell.tsx`**
+- [x] **Step 4: `AppShell.tsx`**
 
 ```tsx
 import { Outlet } from "react-router-dom";
@@ -2236,7 +2236,7 @@ export function AppShell() {
 }
 ```
 
-- [ ] **Step 5: `protected.tsx`**
+- [x] **Step 5: `protected.tsx`**
 
 ```tsx
 import { Navigate, Outlet } from "react-router-dom";
@@ -2262,7 +2262,7 @@ export function ProtectedShell() {
 }
 ```
 
-- [ ] **Step 6: `router.tsx`**
+- [x] **Step 6: `router.tsx`**
 
 ```tsx
 import { createBrowserRouter, RouterProvider, Navigate } from "react-router-dom";
@@ -2308,7 +2308,7 @@ export function AppRouter() {
 }
 ```
 
-- [ ] **Step 7: 建 route stub 檔（給 router 引用不會爆）**
+- [x] **Step 7: 建 route stub 檔（給 router 引用不會爆）**
 
 每個檔案暫時內容如下（後續 task 會實作）：
 
@@ -2319,7 +2319,7 @@ export function Photos() { return <div className="p-4">Photos (stub)</div>; }
 
 八個路由 stub：`photos.tsx` `timeline.tsx` `albums.tsx` `album-detail.tsx` `categories.tsx` `category-detail.tsx` `viewer.tsx` `profile.tsx` `login.tsx` `forbidden.tsx`。
 
-- [ ] **Step 8: 改 `App.tsx` 塞 MediaProvider + AppRouter**
+- [x] **Step 8: 改 `App.tsx` 塞 MediaProvider + AppRouter**
 
 ```tsx
 import { useEffect, useMemo, useState } from "react";
@@ -2365,7 +2365,7 @@ function retryPolicy(n: number, e: unknown): boolean {
 }
 ```
 
-- [ ] **Step 9: test — `protected.test.tsx`**
+- [x] **Step 9: test — `protected.test.tsx`**
 
 ```tsx
 import { render, screen } from "@testing-library/react";
@@ -2430,13 +2430,13 @@ test("success renders outlet", async () => {
 });
 ```
 
-- [ ] **Step 10: 跑 test + build**
+- [x] **Step 10: 跑 test + build**
 
 ```
 cd web && npm run test && npm run build
 ```
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add web/src/components/ web/src/routes/
@@ -2455,7 +2455,7 @@ git commit -m "feat(web): router shell with protected route and bottom nav"
 - Consumes: `useAuth`, `env.authMode`, `env.devUsers`
 - Produces: dev mode 顯示 user 下拉；prod 顯示 Google 按鈕。已登入者導 `/photos`。
 
-- [ ] **Step 1: `login.tsx`**
+- [x] **Step 1: `login.tsx`**
 
 ```tsx
 import { useEffect, useState } from "react";
@@ -2513,7 +2513,7 @@ export function Login() {
 }
 ```
 
-- [ ] **Step 2: test**
+- [x] **Step 2: test**
 
 ```tsx
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
@@ -2545,13 +2545,13 @@ test("dev mode calls signIn with selected uid", async () => {
 });
 ```
 
-- [ ] **Step 3: 跑 test + build**
+- [x] **Step 3: 跑 test + build**
 
 ```
 cd web && npm run test login && npm run build
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add web/src/routes/login.tsx web/src/routes/login.test.tsx
@@ -2573,7 +2573,7 @@ git commit -m "feat(web): login route with dev dropdown and google button"
 - Consumes: `useAllPhotos`, `useAuthedImage`, `Photo` type。
 - Produces: `<PhotoGrid photos onNext onLoadMore hasMore />`；`<PhotoTile photo />` 點擊 navigate `/viewer/:id?from=all`。
 
-- [ ] **Step 1: `Tabs.tsx`（segmented control）**
+- [x] **Step 1: `Tabs.tsx`（segmented control）**
 
 ```tsx
 import { NavLink } from "react-router-dom";
@@ -2602,7 +2602,7 @@ export function Tabs({ items }: { items: Item[] }) {
 }
 ```
 
-- [ ] **Step 2: `PhotoTile.tsx`**
+- [x] **Step 2: `PhotoTile.tsx`**
 
 ```tsx
 import { Link } from "react-router-dom";
@@ -2638,7 +2638,7 @@ export function PhotoTile({ photo, from }: { photo: Photo; from: string }) {
 }
 ```
 
-- [ ] **Step 3: `PhotoGrid.tsx`（含 IntersectionObserver 觸發 loadMore）**
+- [x] **Step 3: `PhotoGrid.tsx`（含 IntersectionObserver 觸發 loadMore）**
 
 ```tsx
 import { useEffect, useRef } from "react";
@@ -2675,7 +2675,7 @@ export function PhotoGrid({ photos, from, hasMore, onLoadMore }: Props) {
 }
 ```
 
-- [ ] **Step 4: `photos.tsx`**
+- [x] **Step 4: `photos.tsx`**
 
 ```tsx
 import { Header } from "../components/layout/Header";
@@ -2710,7 +2710,7 @@ export function Photos() {
 }
 ```
 
-- [ ] **Step 5: test — `photos.test.tsx`**
+- [x] **Step 5: test — `photos.test.tsx`**
 
 ```tsx
 import { render, screen, waitFor } from "@testing-library/react";
@@ -2749,13 +2749,13 @@ test("empty state when no photos", async () => {
 });
 ```
 
-- [ ] **Step 6: 跑 test + build**
+- [x] **Step 6: 跑 test + build**
 
 ```
 cd web && npm run test photos && npm run build
 ```
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add web/src/components/grid/ web/src/components/ui/Tabs.tsx web/src/routes/photos.tsx web/src/routes/photos.test.tsx
@@ -2775,7 +2775,7 @@ git commit -m "feat(web): photos route with tile grid and infinite scroll"
 - Consumes: `useTimeline`, `groupByYearMonth`
 - Produces: 只顯示有 `taken_at` 的照片，依 local Year/Month heading 分組。
 
-- [ ] **Step 1: test — `fmt.test.ts`**
+- [x] **Step 1: test — `fmt.test.ts`**
 
 ```ts
 import { groupByYearMonth } from "./fmt";
@@ -2803,9 +2803,9 @@ test("skips photos without taken_at", () => {
 });
 ```
 
-- [ ] **Step 2: 跑失敗**
+- [x] **Step 2: 跑失敗**
 
-- [ ] **Step 3: `fmt.ts`**
+- [x] **Step 3: `fmt.ts`**
 
 ```ts
 import type { Photo } from "../api/types";
@@ -2834,9 +2834,9 @@ export function groupByYearMonth(photos: Photo[]): Group[] {
 }
 ```
 
-- [ ] **Step 4: 跑通過**
+- [x] **Step 4: 跑通過**
 
-- [ ] **Step 5: `timeline.tsx`**
+- [x] **Step 5: `timeline.tsx`**
 
 ```tsx
 import { Header } from "../components/layout/Header";
@@ -2882,7 +2882,7 @@ export function Timeline() {
 }
 ```
 
-- [ ] **Step 6: 跑 test + build; Commit**
+- [x] **Step 6: 跑 test + build; Commit**
 
 ```bash
 cd web && npm run test && npm run build
@@ -2903,7 +2903,7 @@ git commit -m "feat(web): timeline route grouped by year/month"
 - Consumes: `useAlbums`, `useAlbum`, `useAlbumPhotos`, `useAuthedImage`
 - Produces: Album list（cover + name + count 由 UI 用 `useAlbumPhotos(id)` 拿一頁得 total 是複雜，POC 先不顯示 count），AlbumDetail：album meta header + photo grid。
 
-- [ ] **Step 1: `AlbumCard.tsx`**
+- [x] **Step 1: `AlbumCard.tsx`**
 
 ```tsx
 import { Link } from "react-router-dom";
@@ -2938,7 +2938,7 @@ export function AlbumCard({ album }: { album: Album }) {
 }
 ```
 
-- [ ] **Step 2: `albums.tsx`**
+- [x] **Step 2: `albums.tsx`**
 
 ```tsx
 import { Header } from "../components/layout/Header";
@@ -2974,7 +2974,7 @@ export function Albums() {
 }
 ```
 
-- [ ] **Step 3: `album-detail.tsx`**
+- [x] **Step 3: `album-detail.tsx`**
 
 ```tsx
 import { useParams } from "react-router-dom";
@@ -3008,7 +3008,7 @@ export function AlbumDetail() {
 }
 ```
 
-- [ ] **Step 4: 跑 test + build; Commit**
+- [x] **Step 4: 跑 test + build; Commit**
 
 ```bash
 cd web && npm run test && npm run build
@@ -3029,7 +3029,7 @@ git commit -m "feat(web): albums list and album detail routes"
 - Consumes: `useCategories`, `useCategoryAlbums`, `AlbumCard`
 - Produces：Category list（純文字 tile），CategoryDetail 秀該 category 下的 albums。
 
-- [ ] **Step 1: `CategoryCard.tsx`**
+- [x] **Step 1: `CategoryCard.tsx`**
 
 ```tsx
 import { Link } from "react-router-dom";
@@ -3048,7 +3048,7 @@ export function CategoryCard({ category }: { category: Category }) {
 }
 ```
 
-- [ ] **Step 2: `categories.tsx`**
+- [x] **Step 2: `categories.tsx`**
 
 ```tsx
 import { Header } from "../components/layout/Header";
@@ -3080,7 +3080,7 @@ export function Categories() {
 }
 ```
 
-- [ ] **Step 3: `category-detail.tsx`**
+- [x] **Step 3: `category-detail.tsx`**
 
 ```tsx
 import { useParams } from "react-router-dom";
@@ -3115,7 +3115,7 @@ export function CategoryDetail() {
 }
 ```
 
-- [ ] **Step 4: 跑 test + build; Commit**
+- [x] **Step 4: 跑 test + build; Commit**
 
 ```bash
 cd web && npm run test && npm run build
@@ -3136,7 +3136,7 @@ git commit -m "feat(web): categories list and category detail routes"
 - Consumes: photo id from URL；`useAllPhotos` / `useAlbumPhotos` / `useTimeline` 從 `?from=` 挑集合；`useAuthedImage` 拿 original。
 - Produces：Full-screen viewer 支援 left/right/Escape，錯誤時顯示 "Photo unavailable"。
 
-- [ ] **Step 1: 讀取當前 collection 的策略**
+- [x] **Step 1: 讀取當前 collection 的策略**
 
 `?from=` 語意：
 - `all` → `useAllPhotos()`
@@ -3144,7 +3144,7 @@ git commit -m "feat(web): categories list and category detail routes"
 - `t<YYYY-MM>` → `useTimeline()` filter by group（`from` prefix `t`）
 - 其他 → fallback：只顯示當前一張，前後 nav disabled
 
-- [ ] **Step 2: `PhotoViewer.tsx`**
+- [x] **Step 2: `PhotoViewer.tsx`**
 
 ```tsx
 import { useEffect } from "react";
@@ -3219,7 +3219,7 @@ export function PhotoViewer({ current, siblings, from }: Props) {
 }
 ```
 
-- [ ] **Step 3: test — `PhotoViewer.test.tsx`**
+- [x] **Step 3: test — `PhotoViewer.test.tsx`**
 
 ```tsx
 import { render, screen, fireEvent } from "@testing-library/react";
@@ -3269,7 +3269,7 @@ test("Escape triggers close", () => {
 });
 ```
 
-- [ ] **Step 4: `viewer.tsx`**
+- [x] **Step 4: `viewer.tsx`**
 
 ```tsx
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
@@ -3324,7 +3324,7 @@ function summarize(q: ReturnType<typeof useAllPhotos>): SibState {
 
 **注意**：`useSiblings` 三個 hook 都呼喚 —— React hook 規則要求無條件呼叫，OK。有點浪費但 TanStack Query 對重複呼叫同 key 會 share cache，不會多打 network。可接受。
 
-- [ ] **Step 5: 跑 test + build; Commit**
+- [x] **Step 5: 跑 test + build; Commit**
 
 ```bash
 cd web && npm run test && npm run build
@@ -3344,7 +3344,7 @@ git commit -m "feat(web): full-screen photo viewer with prev/next/escape"
 - Consumes: `useAuth`, `useMe`, `provider.signOut`
 - Produces：Profile 顯示 displayName/email/role + Logout；Forbidden 顯示訊息 + Logout。
 
-- [ ] **Step 1: `profile.tsx`**
+- [x] **Step 1: `profile.tsx`**
 
 ```tsx
 import { useAuth } from "../auth/context";
@@ -3378,7 +3378,7 @@ export function Profile() {
 }
 ```
 
-- [ ] **Step 2: `forbidden.tsx`**
+- [x] **Step 2: `forbidden.tsx`**
 
 ```tsx
 import { useNavigate } from "react-router-dom";
@@ -3404,7 +3404,7 @@ export function Forbidden() {
 }
 ```
 
-- [ ] **Step 3: 跑 test + build; Commit**
+- [x] **Step 3: 跑 test + build; Commit**
 
 ```bash
 cd web && npm run test && npm run build
@@ -3425,7 +3425,7 @@ git commit -m "feat(web): profile and forbidden routes"
 - Consumes: docker-compose dev stack（Task 3）、build output（`npm run build && npm run preview`）
 - Produces：Playwright + Pixel 5 viewport；覆蓋 login → grid → viewer → logout。
 
-- [ ] **Step 1: `playwright.config.ts`**
+- [x] **Step 1: `playwright.config.ts`**
 
 ```ts
 import { defineConfig, devices } from "@playwright/test";
@@ -3452,7 +3452,7 @@ export default defineConfig({
 
 Vite preview 需要 `.env.local` 有 `VITE_AUTH_MODE=testauth` 才走 dev flow。
 
-- [ ] **Step 2: `helpers.ts`**
+- [x] **Step 2: `helpers.ts`**
 
 ```ts
 import type { Page } from "@playwright/test";
@@ -3465,7 +3465,7 @@ export async function signInAs(page: Page, uid: string) {
 }
 ```
 
-- [ ] **Step 3: `login-and-browse.spec.ts`**
+- [x] **Step 3: `login-and-browse.spec.ts`**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -3491,7 +3491,7 @@ test("admin can browse from grid to viewer and log out", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 4: 手動跑一次**
+- [x] **Step 4: 手動跑一次**
 
 ```bash
 make dev-web-stack
@@ -3500,7 +3500,7 @@ cd web && npx playwright install --with-deps chromium && npm run e2e
 
 若失敗（多半是 stack 沒起完全），檢查 `docker compose logs backend`、`curl` API。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd .. 
@@ -3521,7 +3521,7 @@ git commit -m "test(web): playwright happy-path e2e via preview server"
 **Interfaces:**
 - Produces：三個場景可穩定 reproduce。
 
-- [ ] **Step 1: `forbidden.spec.ts`**
+- [x] **Step 1: `forbidden.spec.ts`**
 
 ```ts
 import { test, expect } from "@playwright/test";
@@ -3538,7 +3538,7 @@ test("unallowlisted user lands on /forbidden", async ({ page }) => {
 
 （此 test 依賴 `denied-1` 未加入 allowlist——Task 3 的 `dev-users.json` 只 seed admin/member 兩人。）
 
-- [ ] **Step 2: `thumbnail-missing.spec.ts`**
+- [x] **Step 2: `thumbnail-missing.spec.ts`**
 
 在 dev-stack 內把一張 thumbnail 檔案刪掉：
 
@@ -3561,7 +3561,7 @@ test("grid stays usable when a thumbnail file is missing", async ({ page }) => {
 
 **注意**：此 test 會污染 volume；建議放在最後跑，或後續補一步把 backend 重跑 indexer 復原。若嫌 fragile，可以簡化為「拉不到的 tile 顯示 placeholder 樣式」——用 mock 的 API client 在 unit test 覆蓋，e2e 這條可以省。
 
-- [ ] **Step 3: `token-refresh.spec.ts`**
+- [x] **Step 3: `token-refresh.spec.ts`**
 
 TestAuth 對 `?exp=` 支援短存活；讓前端在需要時可產生短存活 token。實作方案：在 `testauth.ts` 加一個 `signInWithShortExp(uid, expSeconds)` 只給 e2e 用；prod bundle 不使用（bundle guard 也不會誤傷因為它在 `testauth.ts` 檔案內、prod 根本沒 import 這個 module）。
 
@@ -3615,7 +3615,7 @@ test("expired token auto-refreshes on next api call", async ({ page }) => {
 });
 ```
 
-- [ ] **Step 4: 跑三個新 e2e**
+- [x] **Step 4: 跑三個新 e2e**
 
 ```bash
 cd web && npm run e2e
@@ -3623,7 +3623,7 @@ cd web && npm run e2e
 
 失敗常見原因：exec docker 命令路徑；stack 未起；`__ta` 未掛。逐個解。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd ..
@@ -3643,7 +3643,7 @@ git commit -m "test(web): forbidden, thumbnail-missing, token-refresh e2e"
 **Interfaces:**
 - Produces：`make build-web && make bundle-guard` 在 CI 上 fail-fast 阻擋 testauth code / firebase config 洩漏。
 
-- [ ] **Step 1: `web/scripts/bundle-guard.mjs`**
+- [x] **Step 1: `web/scripts/bundle-guard.mjs`**
 
 ```js
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -3679,7 +3679,7 @@ if (violations.length) {
 console.log("Bundle guard OK");
 ```
 
-- [ ] **Step 2: 更新 `web/package.json`**
+- [x] **Step 2: 更新 `web/package.json`**
 
 `"scripts"` 加：
 
@@ -3687,14 +3687,14 @@ console.log("Bundle guard OK");
 "guard": "node scripts/bundle-guard.mjs"
 ```
 
-- [ ] **Step 3: 更新 Makefile bundle-guard target**
+- [x] **Step 3: 更新 Makefile bundle-guard target**
 
 ```makefile
 bundle-guard:
 	cd web && VITE_AUTH_MODE=firebase VITE_FIREBASE_API_KEY=stub VITE_FIREBASE_AUTH_DOMAIN=stub VITE_FIREBASE_PROJECT_ID=stub VITE_FIREBASE_APP_ID=stub npm run build && npm run guard
 ```
 
-- [ ] **Step 4: 跑一次驗**
+- [x] **Step 4: 跑一次驗**
 
 ```bash
 make bundle-guard
@@ -3702,7 +3702,7 @@ make bundle-guard
 
 期望：`Bundle guard OK`。若 testauth code 被 include，會 fail 並列出檔案。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add web/scripts/bundle-guard.mjs web/package.json Makefile
@@ -3715,17 +3715,17 @@ git commit -m "chore: prod bundle guard checks testauth code is stripped"
 
 跑完 22 個 task 後：
 
-- [ ] `make test` 全綠（backend）
-- [ ] `make test-web` 全綠（Vitest）
-- [ ] `make e2e-web` 全綠（Playwright，Pixel 5 viewport = 360px 起）
-- [ ] `make bundle-guard` OK
-- [ ] `make build-web` 產出 `web/dist/` 且大小合理
-- [ ] `/photos` `/photos/timeline` `/albums` `/albums/:id` `/categories` `/categories/:id` `/viewer/:id` `/profile` `/login` `/forbidden` 都可達
-- [ ] Firebase login 成功但 `/me` 未 200 前不顯示照片（Task 12 覆蓋）
-- [ ] Media 帶 Authorization 且 objectUrl 有被 revoke（Task 11 unit + Task 20 e2e）
-- [ ] 沒有 upload / delete / rename / move / admin control（grep 檢查）
-- [ ] Timeline 只顯示 non-null `taken_at`（Task 15 unit test）
-- [ ] Manual smoke：`make dev-web-stack && cd web && npm run dev`，360px viewport 走 login → grid → viewer → logout 順暢
+- [x] `make test` 全綠（backend）
+- [x] `make test-web` 全綠（Vitest）
+- [x] `make e2e-web` 全綠（Playwright，Pixel 5 viewport = 360px 起）
+- [x] `make bundle-guard` OK
+- [x] `make build-web` 產出 `web/dist/` 且大小合理
+- [x] `/photos` `/photos/timeline` `/albums` `/albums/:id` `/categories` `/categories/:id` `/viewer/:id` `/profile` `/login` `/forbidden` 都可達
+- [x] Firebase login 成功但 `/me` 未 200 前不顯示照片（Task 12 覆蓋）
+- [x] Media 帶 Authorization 且 objectUrl 有被 revoke（Task 11 unit + Task 20 e2e）
+- [x] 沒有 upload / delete / rename / move / admin control（grep 檢查）
+- [x] Timeline 只顯示 non-null `taken_at`（Task 15 unit test）
+- [x] Manual smoke：`make dev-web-stack && cd web && npm run dev`，360px viewport 走 login → grid → viewer → logout 順暢
 
 ## 附錄 B：Spec 對照
 
