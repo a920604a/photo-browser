@@ -184,21 +184,27 @@ func (s *Store) GetPhoto(ctx context.Context, id int64) (Photo, bool, error) {
 	return p, true, nil
 }
 
-// AlbumCoverThumbnail returns the first non-null thumbnail_key in the album's
-// photo ordering (taken_at DESC NULLS LAST, id DESC).
-func (s *Store) AlbumCoverThumbnail(ctx context.Context, albumID int64) (sql.NullString, error) {
+// AlbumCover returns the photo id + thumbnail_key of the album's cover photo:
+// the first non-null thumbnail_key in the album's photo ordering
+// (taken_at DESC NULLS LAST, id DESC). ok is false for an album with no
+// thumbnailed photo.
+func (s *Store) AlbumCover(ctx context.Context, albumID int64) (int64, string, bool, error) {
+	var photoID int64
 	var k sql.NullString
 	err := s.conn.QueryRowContext(ctx,
-		`SELECT thumbnail_key
+		`SELECT id, thumbnail_key
 		 FROM photos
 		 WHERE album_id=? AND thumbnail_key IS NOT NULL
 		 ORDER BY (taken_at IS NULL), taken_at DESC, id DESC
 		 LIMIT 1`, albumID,
-	).Scan(&k)
+	).Scan(&photoID, &k)
 	if errors.Is(err, sql.ErrNoRows) {
-		return sql.NullString{}, nil
+		return 0, "", false, nil
 	}
-	return k, err
+	if err != nil {
+		return 0, "", false, err
+	}
+	return photoID, k.String, true, nil
 }
 
 // GetScanRun fetches a scan_runs row projected as ScanRun.

@@ -149,8 +149,8 @@ func TestListTimelineExcludesNull(t *testing.T) {
 	albumID, _ := s.store.UpsertAlbum(s.ctx, catID, "a", "t/a", scanID, time.Now())
 	for i := 0; i < 3; i++ {
 		p := catalog.Photo{
-			AlbumID:  albumID,
-			Filename: fmt.Sprintf("p%d.jpg", i),
+			AlbumID:      albumID,
+			Filename:     fmt.Sprintf("p%d.jpg", i),
 			RelativePath: fmt.Sprintf("t/a/p%d.jpg", i),
 			MIMEType:     "image/jpeg", FileSize: 100, FileMTimeNS: int64(i),
 			TakenAt: sql.NullString{String: fmt.Sprintf("2024-01-0%dT00:00:00", i+1), Valid: true},
@@ -181,7 +181,7 @@ func TestListTimelineExcludesNull(t *testing.T) {
 	}
 }
 
-func TestAlbumCoverThumbnail(t *testing.T) {
+func TestAlbumCover(t *testing.T) {
 	s := newSeed(t)
 	scanID := s.mustScan(t, time.Now())
 	catID, _ := s.store.UpsertCategory(s.ctx, "c", "c", scanID, time.Now())
@@ -192,19 +192,62 @@ func TestAlbumCoverThumbnail(t *testing.T) {
 		MIMEType: "image/jpeg", FileSize: 1, FileMTimeNS: 1,
 		TakenAt: sql.NullString{String: "2025-01-01T00:00:00", Valid: true},
 	}, scanID, time.Now())
-	id, _ := s.store.InsertPhoto(s.ctx, catalog.Photo{
+	wantID, _ := s.store.InsertPhoto(s.ctx, catalog.Photo{
 		AlbumID: albumID, Filename: "b.jpg", RelativePath: "c/a/b.jpg",
 		MIMEType: "image/jpeg", FileSize: 1, FileMTimeNS: 1,
 		TakenAt:      sql.NullString{String: "2024-01-01T00:00:00", Valid: true},
 		ThumbnailKey: sql.NullString{String: "key-b", Valid: true},
 	}, scanID, time.Now())
-	_ = id
-	got, err := s.store.AlbumCoverThumbnail(s.ctx, albumID)
+	photoID, key, ok, err := s.store.AlbumCover(s.ctx, albumID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.String != "key-b" {
-		t.Fatalf("cover=%q want key-b", got.String)
+	if !ok {
+		t.Fatal("ok=false want true")
+	}
+	if photoID != wantID {
+		t.Fatalf("photoID=%d want %d", photoID, wantID)
+	}
+	if key != "key-b" {
+		t.Fatalf("cover=%q want key-b", key)
+	}
+}
+
+func TestAlbumCoverPicksNewestTaken(t *testing.T) {
+	s := newSeed(t)
+	scanID := s.mustScan(t, time.Now())
+	catID, _ := s.store.UpsertCategory(s.ctx, "c", "c", scanID, time.Now())
+	albumID, _ := s.store.UpsertAlbum(s.ctx, catID, "a", "c/a", scanID, time.Now())
+	// inserted oldest-first; cover must follow taken_at DESC NULLS LAST, id DESC.
+	for i, taken := range []string{"2024-01-01T00:00:00", "2026-05-05T00:00:00", "2025-01-01T00:00:00"} {
+		_, _ = s.store.InsertPhoto(s.ctx, catalog.Photo{
+			AlbumID: albumID, Filename: fmt.Sprintf("p%d.jpg", i),
+			RelativePath: fmt.Sprintf("c/a/p%d.jpg", i),
+			MIMEType:     "image/jpeg", FileSize: 1, FileMTimeNS: int64(i),
+			TakenAt:      sql.NullString{String: taken, Valid: true},
+			ThumbnailKey: sql.NullString{String: fmt.Sprintf("k-%d", i), Valid: true},
+		}, scanID, time.Now())
+	}
+	_, key, ok, err := s.store.AlbumCover(s.ctx, albumID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || key != "k-1" {
+		t.Fatalf("cover key=%q ok=%v want k-1", key, ok)
+	}
+}
+
+func TestAlbumCoverEmptyAlbum(t *testing.T) {
+	s := newSeed(t)
+	scanID := s.mustScan(t, time.Now())
+	catID, _ := s.store.UpsertCategory(s.ctx, "c", "c", scanID, time.Now())
+	albumID, _ := s.store.UpsertAlbum(s.ctx, catID, "a", "c/a", scanID, time.Now())
+	photoID, key, ok, err := s.store.AlbumCover(s.ctx, albumID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok || photoID != 0 || key != "" {
+		t.Fatalf("photoID=%d key=%q ok=%v want zero values", photoID, key, ok)
 	}
 }
 
