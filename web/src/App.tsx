@@ -14,7 +14,14 @@ export function App() {
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     makeAuthProvider()
-      .then(setProvider)
+      .then((p) => {
+        setProvider(p);
+        // The e2e suite drives short-lived tokens through this handle. The
+        // branch is a build-time constant, so prod builds drop it entirely.
+        if (import.meta.env.VITE_AUTH_MODE === "testauth") {
+          (window as unknown as { __ta?: AuthProvider }).__ta = p;
+        }
+      })
       .catch((e: unknown) => setError(String(e)));
   }, []);
   const qc = useMemo(

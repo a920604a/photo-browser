@@ -46,10 +46,23 @@ export class TestAuthProvider implements AuthProvider {
   async signIn(uid?: string) {
     const target = uid ?? this.currentUid;
     if (!target) throw new Error("TestAuthProvider.signIn requires uid");
-    const user = this.opts.devUsers.find((u) => u.uid === target);
-    if (!user) throw new Error(`unknown dev uid: ${target}`);
+    await this.signInWith(target);
+  }
+
+  /**
+   * Signs in with a deliberately short-lived token. Exists so the e2e suite can
+   * drive the 401 → refresh → retry path without waiting an hour; reachable
+   * from the page via window.__ta in testauth builds only.
+   */
+  async signInShort(uid: string, expSeconds: number) {
+    await this.signInWith(uid, expSeconds);
+  }
+
+  private async signInWith(uid: string, expSeconds?: number) {
+    const user = this.opts.devUsers.find((u) => u.uid === uid);
+    if (!user) throw new Error(`unknown dev uid: ${uid}`);
     this.currentUid = user.uid;
-    this.token = await this.mint(user);
+    this.token = await this.mint(user, expSeconds);
     sessionStorage.setItem(TOKEN_KEY, this.token);
     sessionStorage.setItem(UID_KEY, user.uid);
     this.emit(this.stateFromUid(user.uid));
@@ -74,11 +87,12 @@ export class TestAuthProvider implements AuthProvider {
     return this.token;
   }
 
-  private async mint(u: DevUser): Promise<string> {
+  private async mint(u: DevUser, expSeconds?: number): Promise<string> {
     const url = new URL("mint", this.baseUrl());
     url.searchParams.set("sub", u.uid);
     url.searchParams.set("email", u.email);
     url.searchParams.set("verified", "1");
+    if (expSeconds !== undefined) url.searchParams.set("exp", String(expSeconds));
     const res = await fetch(url.toString());
     if (!res.ok) throw new Error(`testauth mint failed: ${res.status}`);
     return (await res.text()).trim();
