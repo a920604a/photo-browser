@@ -5,6 +5,8 @@ import type { AuthProvider } from "./auth/provider";
 import { makeAuthProvider } from "./auth/select";
 import { makeApi } from "./api/client";
 import { ApiProvider } from "./api/context";
+import { MediaProvider } from "./media/hooks";
+import { AppRouter } from "./routes/router";
 import { env } from "./lib/env";
 
 export function App() {
@@ -40,7 +42,9 @@ export function App() {
     <AuthContextProvider provider={provider}>
       <QueryClientProvider client={qc}>
         <ApiProvider client={client}>
-          <div className="p-6">Placeholder — routes go in Task 12</div>
+          <MediaProvider api={client}>
+            <AppRouter />
+          </MediaProvider>
         </ApiProvider>
       </QueryClientProvider>
     </AuthContextProvider>
