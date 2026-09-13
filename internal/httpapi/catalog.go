@@ -18,6 +18,7 @@ type albumDTO struct {
 	CategoryID        int64  `json:"category_id"`
 	Name              string `json:"name"`
 	RelativePath      string `json:"relative_path"`
+	CoverPhotoID      int64  `json:"cover_photo_id,omitempty"`
 	CoverThumbnailKey string `json:"cover_thumbnail_key,omitempty"`
 }
 
@@ -41,6 +42,16 @@ func toCategoryDTO(c catalog.Category) categoryDTO {
 
 func toAlbumDTO(a catalog.Album) albumDTO {
 	return albumDTO{ID: a.ID, CategoryID: a.CategoryID, Name: a.Name, RelativePath: a.RelativePath}
+}
+
+// withCover fills the cover fields so a client can build the album thumbnail
+// URL (/media/photos/{cover_photo_id}/thumb) without a second request. A
+// coverless album (or a lookup error) simply leaves the omitempty fields unset.
+func withCover(r *http.Request, d RouterDeps, dto *albumDTO) {
+	if pid, key, ok, err := d.Catalog.AlbumCover(r.Context(), dto.ID); err == nil && ok {
+		dto.CoverPhotoID = pid
+		dto.CoverThumbnailKey = key
+	}
 }
 
 func toPhotoDTO(p catalog.Photo) photoDTO {
@@ -124,6 +135,7 @@ func listCategoryAlbums(d RouterDeps) http.HandlerFunc {
 		items := make([]albumDTO, len(albums))
 		for i, a := range albums {
 			items[i] = toAlbumDTO(a)
+			withCover(r, d, &items[i])
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 	}
@@ -149,6 +161,7 @@ func listAlbums(d RouterDeps) http.HandlerFunc {
 		items := make([]albumDTO, len(albums))
 		for i, a := range albums {
 			items[i] = toAlbumDTO(a)
+			withCover(r, d, &items[i])
 		}
 		WriteJSON(w, http.StatusOK, map[string]any{
 			"items":       items,
@@ -174,9 +187,7 @@ func getAlbum(d RouterDeps) http.HandlerFunc {
 			return
 		}
 		dto := toAlbumDTO(a)
-		if key, err := d.Catalog.AlbumCoverThumbnail(r.Context(), id); err == nil && key.Valid {
-			dto.CoverThumbnailKey = key.String
-		}
+		withCover(r, d, &dto)
 		WriteJSON(w, http.StatusOK, dto)
 	}
 }

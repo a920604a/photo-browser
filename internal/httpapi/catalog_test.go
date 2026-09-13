@@ -144,6 +144,43 @@ func TestListCategoryAlbums(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
 	}
+	var body struct{ Items []map[string]any }
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 1 {
+		t.Fatalf("items=%v", body.Items)
+	}
+	assertAlbumCover(t, body.Items[0])
+}
+
+func TestListAlbumsIncludesCover(t *testing.T) {
+	f := seedCatalog(t)
+	rec := doGET(t, f.router, memberToken(f), "/api/v1/albums")
+	if rec.Code != 200 {
+		t.Fatalf("code=%d body=%s", rec.Code, rec.Body)
+	}
+	var body struct{ Items []map[string]any }
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 1 {
+		t.Fatalf("items=%v", body.Items)
+	}
+	assertAlbumCover(t, body.Items[0])
+}
+
+// assertAlbumCover checks an album DTO carries both cover fields the web client
+// needs to build a thumbnail URL without a second request.
+func assertAlbumCover(t *testing.T, album map[string]any) {
+	t.Helper()
+	id, ok := album["cover_photo_id"].(float64)
+	if !ok || id == 0 {
+		t.Fatalf("missing cover_photo_id: %v", album)
+	}
+	if key, _ := album["cover_thumbnail_key"].(string); key == "" {
+		t.Fatalf("missing cover_thumbnail_key: %v", album)
+	}
 }
 
 func TestListCategoryAlbumsUnknownCategory(t *testing.T) {
@@ -163,9 +200,7 @@ func TestGetAlbumIncludesCover(t *testing.T) {
 	}
 	var body map[string]any
 	_ = json.Unmarshal(rec.Body.Bytes(), &body)
-	if body["cover_thumbnail_key"] == nil || body["cover_thumbnail_key"] == "" {
-		t.Fatalf("missing cover: %v", body)
-	}
+	assertAlbumCover(t, body)
 }
 
 func TestListAlbumPhotosPaginates(t *testing.T) {
