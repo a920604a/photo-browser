@@ -37,12 +37,13 @@ test-web:
 build-web:
 	cd web && npm ci --prefer-offline --no-audit && npm run build
 
+# Builds in prod (firebase) mode with stub config, then asserts the emitted
+# bundle carries no testauth code. Leaves web/dist holding the prod build.
 bundle-guard:
-	@echo "checking prod bundle has no testauth code..."
-	@if grep -r -l -E "TestAuthProvider|/mint\?sub" web/dist/ >/dev/null 2>&1; then \
-		echo "FAIL: testauth code found in prod bundle"; exit 1; \
-	fi
-	@echo "OK"
+	cd web && VITE_AUTH_MODE=firebase \
+	  VITE_FIREBASE_API_KEY=stub VITE_FIREBASE_AUTH_DOMAIN=stub \
+	  VITE_FIREBASE_PROJECT_ID=stub VITE_FIREBASE_APP_ID=stub \
+	  npm run build && npm run guard
 
 e2e-web:
 	$(MAKE) dev-web-stack

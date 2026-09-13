@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "guard": "node scripts/bundle-guard.mjs"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.51.0",
