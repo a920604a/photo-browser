@@ -1,0 +1,55 @@
+# Local dev stack for the web frontend: nginx on :8081 fronts the backend, and
+# testauth on :8090 mints tokens in place of Firebase. The backend indexes the
+# fixture library and seeds the allowlist on start.
+#
+# PHOTO_FIXTURES defaults to the generated two-level library from
+# `bash deploy/compose/dev-fixtures.sh` (run by `make dev-web-stack`); flat
+# test-photos/ cannot be indexed directly.
+services:
+  testauth:
+    image: photo-browser-api-acceptance
+    command: ["/usr/local/bin/testauth"]
+    environment:
+      MINT_ISSUER: https://securetoken.google.com/demo-proj
+      MINT_AUDIENCE: demo-proj
+      LISTEN: ":8090"
+    ports:
+      - "8090:8090"
+
+  backend:
+    image: photo-browser-api-acceptance
+    entrypoint: ["/usr/local/bin/dev-entrypoint.sh"]
+    environment:
+      PHOTO_ROOT: /srv/photos
+      DATA_DIR: /srv/data
+      THUMBNAIL_DIR: /srv/thumbnails
+      HTTP_LISTEN: ":8080"
+      FIREBASE_PROJECT_ID: demo-proj
+      FIREBASE_JWKS_URL: http://testauth:8090/jwks
+      ALLOWED_ORIGINS: http://localhost:5173
+      INTERNAL_MEDIA_ORIGINALS: /internal-media/originals
+      INTERNAL_MEDIA_THUMBNAILS: /internal-media/thumbnails
+    volumes:
+      - ${PHOTO_FIXTURES:-../../.dev-fixtures/photos}:/srv/photos:ro
+      - photo-data-dev:/srv/data
+      - photo-thumbs-dev:/srv/thumbnails
+      - ../../deploy/compose/dev-entrypoint.sh:/usr/local/bin/dev-entrypoint.sh:ro
+      - ../../deploy/compose/dev-users.json:/dev-users/users.json:ro
+    depends_on:
+      - testauth
+
+  nginx:
+    image: nginx:latest
+    pull_policy: missing
+    volumes:
+      - ../../deploy/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ${PHOTO_FIXTURES:-../../.dev-fixtures/photos}:/srv/photos:ro
+      - photo-thumbs-dev:/srv/thumbnails:ro
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+
+volumes:
+  photo-data-dev:
+  photo-thumbs-dev:
