@@ -225,3 +225,66 @@ func TestRunRuntimeFailure(t *testing.T) {
 		t.Fatalf("stderr=%q", stderr.String())
 	}
 }
+
+func TestRunHealthcheckDispatches(t *testing.T) {
+	called := false
+	code := Run(context.Background(), []string{"healthcheck"}, io.Discard, io.Discard, Commands{
+		Healthcheck: func(context.Context, []string, io.Writer, io.Writer) int { called = true; return 0 },
+	})
+	if code != 0 || !called {
+		t.Fatalf("code=%d called=%v", code, called)
+	}
+}
+
+func TestRunHealthcheckTakesNoLock(t *testing.T) {
+	code := Run(context.Background(), []string{"healthcheck"}, io.Discard, io.Discard, Commands{
+		Lock: func() (io.Closer, error) {
+			t.Error("healthcheck must not take the index lock")
+			return nopCloser{}, nil
+		},
+		Healthcheck: func(context.Context, []string, io.Writer, io.Writer) int { return 0 },
+	})
+	if code != 0 {
+		t.Fatalf("code=%d", code)
+	}
+}
+
+func TestRunHealthcheckRejectsUnknownFlag(t *testing.T) {
+	code := Run(context.Background(), []string{"healthcheck", "--nope"}, io.Discard, io.Discard, Commands{
+		Healthcheck: func(_ context.Context, args []string, _, stderr io.Writer) int {
+			// Main's closure does the flag parsing; here we only assert the
+			// arguments reach it untouched.
+			if len(args) != 1 || args[0] != "--nope" {
+				t.Errorf("args=%v", args)
+			}
+			return 2
+		},
+	})
+	if code != 2 {
+		t.Fatalf("code=%d want 2", code)
+	}
+}
+
+func TestRunBackupTakesTheIndexLock(t *testing.T) {
+	locked := false
+	code := Run(context.Background(), []string{"backup", "--out=/tmp/x.db"}, io.Discard, io.Discard, Commands{
+		Lock:   func() (io.Closer, error) { locked = true; return nopCloser{}, nil },
+		Backup: func(context.Context, []string, io.Writer, io.Writer) int { return 0 },
+	})
+	if code != 0 || !locked {
+		t.Fatalf("code=%d locked=%v", code, locked)
+	}
+}
+
+func TestRunBackupReportsLockBusy(t *testing.T) {
+	code := Run(context.Background(), []string{"backup", "--out=/tmp/x.db"}, io.Discard, io.Discard, Commands{
+		Lock: func() (io.Closer, error) { return nil, filelock.ErrAlreadyLocked },
+		Backup: func(context.Context, []string, io.Writer, io.Writer) int {
+			t.Error("backup ran despite a busy lock")
+			return 0
+		},
+	})
+	if code != 3 {
+		t.Fatalf("code=%d want 3", code)
+	}
+}
