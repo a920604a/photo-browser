@@ -106,3 +106,17 @@ restore-drill:
 
 measure:
 	bash scripts/measure-resources.sh --compose $(PRODCHECK) --out docs/deploy/resource-measurements.md
+
+.PHONY: build-web-prod
+
+# Production frontend build. Refuses to produce a bundle that still carries
+# testauth code, and refuses to build without a real API base URL.
+build-web-prod:
+	@test -n "$$VITE_API_BASE_URL" || { echo "VITE_API_BASE_URL must be set"; exit 1; }
+	@test -n "$$VITE_FIREBASE_API_KEY" || { echo "VITE_FIREBASE_API_KEY must be set"; exit 1; }
+	@# VITE_AUTH_MODE must prefix `npm run build`, not `npm ci`: prefixing the
+	@# install leaves the build reading VITE_AUTH_MODE from .env.local, which
+	@# produces a dev bundle under a production label.
+	cd web && npm ci --prefer-offline --no-audit \
+	  && VITE_AUTH_MODE=firebase npm run build \
+	  && npm run guard
