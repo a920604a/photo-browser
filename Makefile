@@ -85,7 +85,7 @@ prodcheck-up: build-prod
 	@echo "prodcheck on http://localhost:8088 (Host: photos-api.localhost), testauth on :8090"
 
 prodcheck-down:
-	docker compose -f $(PRODCHECK) down -v
+	docker compose -f $(PRODCHECK) down -v --remove-orphans
 
 .PHONY: verify-deployment
 

@@ -28,7 +28,18 @@ BACKUP="$(ls -1t "$DEST"/photo-*.db | head -1)"
 echo "backup: $BACKUP"
 
 step "3. destroy the data and thumbnail volumes"
-docker compose -f "$COMPOSE" down -v >/dev/null 2>&1
+# --remove-orphans matters: a leftover `compose run` container still holds the
+# volumes, and without it `down -v` reports "resource is still in use" and
+# silently leaves the data in place — which would make the restore below prove
+# nothing at all.
+docker compose -f "$COMPOSE" down -v --remove-orphans >/dev/null 2>&1
+for v in $(docker volume ls -q --filter "name=prodcheck-"); do
+  docker volume rm "$v" >/dev/null 2>&1 || true
+done
+remaining="$(docker volume ls -q --filter "name=prodcheck-" | wc -l | tr -d ' ')"
+if [ "$remaining" != "0" ]; then
+  echo "FAIL: $remaining prodcheck volume(s) survived the teardown"; exit 1
+fi
 docker compose -f "$COMPOSE" up -d >/dev/null 2>&1
 sleep 4
 if dcr admin list-users | grep -q restore-probe; then
