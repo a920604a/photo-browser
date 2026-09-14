@@ -36,3 +36,19 @@ func TestWriteErrorEnvelope(t *testing.T) {
 		t.Fatalf("suspicious body: %q", rec.Body.String())
 	}
 }
+
+func TestWriteJSONMarksResponsesNoStore(t *testing.T) {
+	rec := httptest.NewRecorder()
+	httpapi.WriteJSON(rec, 200, map[string]string{"a": "b"})
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control=%q want no-store", got)
+	}
+}
+
+func TestWriteErrorMarksResponsesNoStore(t *testing.T) {
+	rec := httptest.NewRecorder()
+	httpapi.WriteError(rec, 403, httpapi.CodeForbidden, "nope")
+	if got := rec.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("Cache-Control=%q want no-store", got)
+	}
+}

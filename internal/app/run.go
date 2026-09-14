@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -23,7 +24,9 @@ const usage = `usage:
   photo-app index [--rebuild-thumbnails]
   photo-app rebuild
   photo-app admin <sub-command>
-  photo-app serve`
+  photo-app serve
+  photo-app healthcheck [--url=<url>]
+  photo-app backup --out=<path>`
 
 // Commands isolates side-effectful operations so tests can substitute fakes.
 type Commands struct {
@@ -33,6 +36,9 @@ type Commands struct {
 	Serve     func(ctx context.Context, stdout, stderr io.Writer) error
 	Lock      func() (io.Closer, error)
 	ServeLock func() (io.Closer, error) // separate from Lock so serve can coexist with cron `index`
+
+	Healthcheck func(ctx context.Context, args []string, stdout, stderr io.Writer) int
+	Backup      func(ctx context.Context, args []string, stdout, stderr io.Writer) int
 }
 
 // Run dispatches args to Commands. Returns the process exit code:
@@ -107,6 +113,32 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, cmds Comm
 			return 1
 		}
 		return 0
+	case "healthcheck":
+		if cmds.Healthcheck == nil {
+			fmt.Fprintln(stderr, "healthcheck not wired")
+			return 1
+		}
+		// No lock: this runs while serve holds serve.lock, and it only reads
+		// over HTTP.
+		return cmds.Healthcheck(ctx, args[1:], stdout, stderr)
+	case "backup":
+		if cmds.Backup == nil {
+			fmt.Fprintln(stderr, "backup not wired")
+			return 1
+		}
+		// Shares index.lock so a snapshot can never race a concurrent index
+		// or admin write.
+		lock, err := cmds.Lock()
+		if err != nil {
+			if errors.Is(err, filelock.ErrAlreadyLocked) {
+				fmt.Fprintln(stderr, "photo-app is already running")
+				return 3
+			}
+			fmt.Fprintf(stderr, "lock: %v\n", err)
+			return 1
+		}
+		defer lock.Close()
+		return cmds.Backup(ctx, args[1:], stdout, stderr)
 	default:
 		fmt.Fprintf(stderr, "unknown command: %s\n%s\n", args[0], usage)
 		return 2
@@ -184,6 +216,37 @@ func Main(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 				counts.Seen, counts.New, counts.Warnings)
 			return err
 		},
+		Healthcheck: func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+			url := healthcheckURL(cfg.HTTPListen)
+			for _, a := range args {
+				if !strings.HasPrefix(a, "--url=") {
+					fmt.Fprintf(stderr, "unknown flag: %s\n%s\n", a, usage)
+					return 2
+				}
+				url = strings.TrimPrefix(a, "--url=")
+			}
+			return RunHealthcheck(ctx, url, nil, stderr)
+		},
+		Backup: func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
+			out := ""
+			for _, a := range args {
+				if !strings.HasPrefix(a, "--out=") {
+					fmt.Fprintf(stderr, "unknown flag: %s\n%s\n", a, usage)
+					return 2
+				}
+				out = strings.TrimPrefix(a, "--out=")
+			}
+			db, err := env.database()
+			if err != nil {
+				fmt.Fprintf(stderr, "backup: %v\n", err)
+				return 1
+			}
+			if err := RunBackup(ctx, db, out, stdout); err != nil {
+				fmt.Fprintf(stderr, "%v\n", err)
+				return 1
+			}
+			return 0
+		},
 		Admin: func(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			us, err := env.usersStore()
 			if err != nil {
@@ -233,6 +296,11 @@ func (env *prodEnv) indexer() (*indexer.Indexer, error) {
 		Walk:         scanner.Walk,
 		ReadMetadata: media.ReadMetadata,
 		Thumbnail:    thumb.Generate,
+		FreeSpace:    indexer.FreeBytes,
+		MinFreeBytes: env.cfg.ThumbnailMinFreeBytes,
+		Warn: func(w scanner.Warning) {
+			fmt.Fprintf(env.stdout, "warning: %s %s\n", w.Code, w.Path)
+		},
 	}
 	return env.idx, nil
 }
@@ -241,6 +309,15 @@ func (env *prodEnv) close() {
 	if env.db != nil {
 		_ = env.db.closer.Close()
 	}
+}
+
+// database returns the shared *sql.DB, opening it if needed. Callers must not
+// close it — prodEnv.close owns the handle.
+func (env *prodEnv) database() (*sql.DB, error) {
+	if _, err := env.indexer(); err != nil {
+		return nil, err
+	}
+	return env.store.RawDB(), nil
 }
 
 // usersStore lazily opens the DB and returns a users.Store on the shared handle.

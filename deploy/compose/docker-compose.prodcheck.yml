@@ -1,0 +1,91 @@
+# Production stack, locally runnable. Same image, same nginx.prod.conf, same
+# read-only mounts and hardening as production. Two deliberate swaps:
+#   * cloudflared is replaced by a published port, since there is no tunnel here
+#   * Firebase is replaced by testauth, since there is no Firebase project here
+# Everything else must stay identical, or verifying against it proves nothing.
+#
+# No `user:` override: production pins ${APP_UID}:${APP_GID} to match the NAS
+# share's owner, but these volumes are docker-managed, so the image's built-in
+# 65532:65532 is what can write to them.
+services:
+  # Docker creates a named volume root-owned, but the image runs as 65532, so
+  # the first write fails. Production has no equivalent service because the NAS
+  # runbook chowns the bind-mounted directories to APP_UID:APP_GID instead —
+  # this is the same step, done where docker owns the storage.
+  init-perms:
+    image: photo-browser:${APP_VERSION:-latest-prod}
+    user: "0:0"
+    entrypoint: ["chown", "-R", "65532:65532", "/srv/data", "/srv/thumbnails"]
+    volumes:
+      - prodcheck-data:/srv/data:rw
+      - prodcheck-thumbs:/srv/thumbnails:rw
+
+  testauth:
+    image: photo-browser-api-acceptance
+    command: ["/usr/local/bin/testauth"]
+    environment:
+      MINT_ISSUER: https://securetoken.google.com/demo-proj
+      MINT_AUDIENCE: demo-proj
+      LISTEN: ":8090"
+    ports:
+      - "8090:8090"
+
+  photo-app:
+    image: photo-browser:${APP_VERSION:-latest-prod}
+    command: ["serve"]
+    environment:
+      PHOTO_ROOT: /srv/photos
+      DATA_DIR: /srv/data
+      THUMBNAIL_DIR: /srv/thumbnails
+      HTTP_LISTEN: ":8080"
+      FIREBASE_PROJECT_ID: demo-proj
+      FIREBASE_JWKS_URL: http://testauth:8090/jwks
+      ALLOWED_ORIGINS: http://localhost:5173
+      INTERNAL_MEDIA_ORIGINALS: /internal-media/originals
+      INTERNAL_MEDIA_THUMBNAILS: /internal-media/thumbnails
+    volumes:
+      - ${PHOTO_FIXTURES:-../../.dev-fixtures/photos}:/srv/photos:ro
+      - prodcheck-data:/srv/data:rw
+      - prodcheck-thumbs:/srv/thumbnails:rw
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "photo-app", "healthcheck"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 5s
+    depends_on:
+      testauth:
+        condition: service_started
+      init-perms:
+        condition: service_completed_successfully
+
+  nginx:
+    image: ${NGINX_IMAGE:-nginxinc/nginx-unprivileged:1.27-alpine}
+    environment:
+      PUBLIC_API_HOST: photos-api.localhost
+      # Without this, envsubst writes the template into conf.d/, which is
+      # included inside http{} — and a whole nginx.conf cannot live there.
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    volumes:
+      - ../../deploy/nginx/nginx.prod.conf:/etc/nginx/templates/nginx.conf.template:ro
+      - ${PHOTO_FIXTURES:-../../.dev-fixtures/photos}:/srv/photos:ro
+      - prodcheck-thumbs:/srv/thumbnails:ro
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    # Stands in for the tunnel. Production publishes nothing.
+    ports:
+      - "8088:8080"
+    depends_on:
+      photo-app:
+        condition: service_healthy
+
+volumes:
+  prodcheck-data:
+  prodcheck-thumbs:

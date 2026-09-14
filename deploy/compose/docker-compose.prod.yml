@@ -1,0 +1,91 @@
+# Production topology for the NAS. Three services, no published ports:
+# cloudflared dials out to Cloudflare, so nothing listens on a host interface
+# and no router port forwarding is needed (or permitted).
+services:
+  photo-app:
+    image: photo-browser:${APP_VERSION}
+    command: ["serve"]
+    user: "${APP_UID}:${APP_GID}"
+    environment:
+      PHOTO_ROOT: /srv/photos
+      DATA_DIR: /srv/data
+      THUMBNAIL_DIR: /srv/thumbnails
+      HTTP_LISTEN: ":8080"
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID}
+      ALLOWED_ORIGINS: https://${PUBLIC_APP_HOST}
+      INTERNAL_MEDIA_ORIGINALS: /internal-media/originals
+      INTERNAL_MEDIA_THUMBNAILS: /internal-media/thumbnails
+      THUMBNAIL_MIN_FREE_BYTES: ${THUMBNAIL_MIN_FREE_BYTES}
+    volumes:
+      - ${NAS_PHOTOS}:/srv/photos:ro
+      - ${NAS_DATA}:/srv/data:rw
+      - ${NAS_THUMBS}:/srv/thumbnails:rw
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${APP_MEM_LIMIT}
+    restart: unless-stopped
+    healthcheck:
+      # The runtime image has no curl; the binary probes itself instead.
+      test: ["CMD", "photo-app", "healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: ${NGINX_IMAGE}
+    user: "${APP_UID}:${APP_GID}"
+    environment:
+      PUBLIC_API_HOST: ${PUBLIC_API_HOST}
+      # Without this, envsubst writes the template into conf.d/, which is
+      # included inside http{} — and a whole nginx.conf cannot live there.
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    volumes:
+      # The official entrypoint runs envsubst over /etc/nginx/templates/*.template.
+      - ../../deploy/nginx/nginx.prod.conf:/etc/nginx/templates/nginx.conf.template:ro
+      - ${NAS_PHOTOS}:/srv/photos:ro
+      - ${NAS_THUMBS}:/srv/thumbnails:ro
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${NGINX_MEM_LIMIT}
+    restart: unless-stopped
+    depends_on:
+      photo-app:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  cloudflared:
+    image: ${CLOUDFLARED_IMAGE}
+    command: ["tunnel", "--no-autoupdate", "--config", "/etc/cloudflared/config.yml", "run"]
+    user: "${APP_UID}:${APP_GID}"
+    volumes:
+      - ../../deploy/cloudflared/config.yml:/etc/cloudflared/config.yml:ro
+      # Credential file, mode 0400, owned by APP_UID. Never in git, never in an
+      # image layer — see deploy/cloudflared/README.md.
+      - ${NAS_DATA}/cloudflared:/etc/cloudflared/creds:ro
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${CLOUDFLARED_MEM_LIMIT}
+    restart: unless-stopped
+    depends_on:
+      - nginx
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

@@ -17,6 +17,10 @@ const DefaultBatchSize = 200
 
 type Options struct {
 	RebuildThumbnails bool
+
+	// skipThumbnails is decided once per run by thumbnailsAllowed and carried
+	// to the per-entry handlers. Unexported so only a run can set it.
+	skipThumbnails bool
 }
 
 type WalkFn func(root string, warn func(scanner.Warning)) ([]scanner.Entry, error)
@@ -32,6 +36,16 @@ type Indexer struct {
 	Thumbnail    ThumbnailFn
 	BatchSize    int
 	Now          func() time.Time
+
+	// Thumbnail generation stops when the thumbnail volume drops below
+	// MinFreeBytes, so a filling disk costs thumbnails rather than the
+	// catalogue or the originals. Zero disables the check.
+	FreeSpace    func(path string) (uint64, error)
+	MinFreeBytes int64
+
+	// Optional sink for warnings. Without it warnings are only counted, which
+	// is not enough to diagnose a scan or a filling disk.
+	Warn func(scanner.Warning)
 }
 
 // ThumbnailKey formats the deterministic key for a photo's thumbnail file.
@@ -70,11 +84,13 @@ func (idx *Indexer) RunWithScanID(ctx context.Context, scanID int64, opts Option
 
 	entries, walkErr := idx.Walk(idx.PhotoRoot, func(w scanner.Warning) {
 		counts.Warnings++
+		idx.warn(w)
 	})
 	if walkErr != nil {
 		return counts, walkErr
 	}
 	counts.Seen = int64(len(entries))
+	opts.skipThumbnails = !idx.thumbnailsAllowed(&counts)
 
 	batchSize := idx.BatchSize
 	if batchSize <= 0 {
@@ -129,10 +145,10 @@ func (idx *Indexer) processEntry(
 	src := filepath.Join(idx.PhotoRoot, filepath.FromSlash(entry.RelativePath))
 
 	if !found {
-		return idx.handleNew(ctx, s, entry, albumID, scanID, src, now, counts)
+		return idx.handleNew(ctx, s, entry, albumID, opts, scanID, src, now, counts)
 	}
 	if entry.Size != existing.FileSize || entry.MTimeNS != existing.FileMTimeNS {
-		return idx.handleChanged(ctx, s, entry, existing, scanID, src, now, counts)
+		return idx.handleChanged(ctx, s, entry, existing, opts, scanID, src, now, counts)
 	}
 	return idx.handleUnchanged(ctx, s, entry, existing, opts, scanID, src, now, counts)
 }
@@ -141,7 +157,9 @@ func (idx *Indexer) handleNew(
 	ctx context.Context,
 	s *catalog.Store,
 	entry *scanner.Entry,
-	albumID, scanID int64,
+	albumID int64,
+	opts Options,
+	scanID int64,
 	src string,
 	now time.Time,
 	counts *catalog.ScanCounts,
@@ -171,6 +189,9 @@ func (idx *Indexer) handleNew(
 	if metaErr != nil {
 		return nil // no thumbnail if we couldn't decode
 	}
+	if opts.skipThumbnails {
+		return nil // catalogued without a thumbnail; the disk is too full
+	}
 	key := ThumbnailKey(id, entry.MTimeNS, entry.Size)
 	if err := idx.Thumbnail(ctx, src, key, maxDim(meta.Width, meta.Height)); err != nil {
 		counts.Warnings++
@@ -184,6 +205,7 @@ func (idx *Indexer) handleChanged(
 	s *catalog.Store,
 	entry *scanner.Entry,
 	existing catalog.Photo,
+	opts Options,
 	scanID int64,
 	src string,
 	now time.Time,
@@ -205,6 +227,12 @@ func (idx *Indexer) handleChanged(
 	existing.Height = meta.Height
 	existing.TakenAt = meta.TakenAt
 
+	if opts.skipThumbnails {
+		// Leave the existing key alone: the old thumbnail file is still on disk
+		// and still serves. Only new generation stops.
+		counts.Changed++
+		return s.UpdatePhoto(ctx, existing, scanID, now)
+	}
 	newKey := ThumbnailKey(existing.ID, entry.MTimeNS, entry.Size)
 	if err := idx.Thumbnail(ctx, src, newKey, maxDim(meta.Width, meta.Height)); err != nil {
 		counts.Warnings++
@@ -227,7 +255,7 @@ func (idx *Indexer) handleUnchanged(
 	now time.Time,
 	counts *catalog.ScanCounts,
 ) error {
-	if opts.RebuildThumbnails {
+	if opts.RebuildThumbnails && !opts.skipThumbnails {
 		key := ThumbnailKey(existing.ID, entry.MTimeNS, entry.Size)
 		if err := idx.Thumbnail(ctx, src, key, maxDim(existing.Width, existing.Height)); err != nil {
 			counts.Warnings++
@@ -239,6 +267,38 @@ func (idx *Indexer) handleUnchanged(
 	}
 	counts.Unchanged++
 	return s.MarkPhotoSeen(ctx, existing.ID, scanID, now)
+}
+
+// warn forwards a warning to the optional sink. Counting happens at the call
+// site, because walk warnings and indexer warnings are counted separately.
+func (idx *Indexer) warn(w scanner.Warning) {
+	if idx.Warn != nil {
+		idx.Warn(w)
+	}
+}
+
+// thumbnailsAllowed is consulted once per run: a syscall per photo would be
+// wasted work, and a decision that flipped mid-run would be harder to explain.
+func (idx *Indexer) thumbnailsAllowed(counts *catalog.ScanCounts) bool {
+	if idx.MinFreeBytes <= 0 {
+		return true
+	}
+	probe := idx.FreeSpace
+	if probe == nil {
+		probe = FreeBytes
+	}
+	free, err := probe(idx.ThumbnailDir)
+	if err != nil {
+		// Cannot tell. Keep generating — a broken statfs must not quietly turn
+		// thumbnails off for good.
+		return true
+	}
+	if free >= uint64(idx.MinFreeBytes) {
+		return true
+	}
+	counts.Warnings++
+	idx.warn(scanner.Warning{Path: idx.ThumbnailDir, Code: scanner.CodeLowDiskSpace})
+	return false
 }
 
 func (idx *Indexer) now() time.Time {

@@ -1,3 +1,7 @@
+APP_VERSION := $(shell cat deploy/VERSION)
+export APP_VERSION
+PRODCHECK := deploy/compose/docker-compose.prodcheck.yml
+
 .PHONY: test build acceptance api-acceptance
 
 test:
@@ -49,3 +53,70 @@ e2e-web:
 	$(MAKE) dev-web-stack
 	cd web && npm ci --prefer-offline --no-audit && npx playwright install --with-deps chromium && npm run e2e
 	$(MAKE) dev-web-stack-down
+
+.PHONY: preflight
+
+preflight:
+	bash scripts/nas-preflight.sh --out docs/deploy/preflight-report.md
+
+.PHONY: build-prod verify-image
+
+# Reproducible, conservatively targeted image for the Braswell NAS.
+# GOAMD64=v1 is set in the Dockerfile and must not be relaxed.
+build-prod:
+	docker build --platform linux/amd64 --target runtime \
+	  -t photo-browser:$(APP_VERSION) -t photo-browser:latest-prod .
+	@echo "built photo-browser:$(APP_VERSION)"
+
+verify-image:
+	bash scripts/verify-image.sh photo-browser:$(APP_VERSION)
+
+.PHONY: prodcheck-up prodcheck-down
+
+# Production image + production nginx.conf, runnable on a laptop.
+prodcheck-up: build-prod
+	bash deploy/compose/dev-fixtures.sh
+	docker compose -f $(PRODCHECK) up -d
+	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app index
+	@# Idempotent: re-running against a seeded stack must not fail, so an
+	@# already-existing user is not an error here.
+	-docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=admin-1 --email=admin@example.com --role=admin
+	-docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=member-1 --email=member@example.com --role=member
+	@echo "prodcheck on http://localhost:8088 (Host: photos-api.localhost), testauth on :8090"
+
+prodcheck-down:
+	docker compose -f $(PRODCHECK) down -v --remove-orphans
+
+.PHONY: verify-deployment
+
+verify-deployment:
+	@MEMBER=$$(curl -s "http://localhost:8090/mint?sub=member-1&email=member@example.com&verified=1"); \
+	 ADMIN=$$(curl -s "http://localhost:8090/mint?sub=admin-1&email=admin@example.com&verified=1"); \
+	 DENIED=$$(curl -s "http://localhost:8090/mint?sub=denied-1&email=denied@example.com&verified=1"); \
+	 bash scripts/verify-deployment.sh --base-url http://localhost:8088 --host photos-api.localhost \
+	   --member-token "$$MEMBER" --admin-token "$$ADMIN" --denied-token "$$DENIED" \
+	   --compose $(PRODCHECK)
+
+.PHONY: restore-drill
+
+restore-drill:
+	bash scripts/restore-drill.sh
+
+.PHONY: measure
+
+measure:
+	bash scripts/measure-resources.sh --compose $(PRODCHECK) --out docs/deploy/resource-measurements.md
+
+.PHONY: build-web-prod
+
+# Production frontend build. Refuses to produce a bundle that still carries
+# testauth code, and refuses to build without a real API base URL.
+build-web-prod:
+	@test -n "$$VITE_API_BASE_URL" || { echo "VITE_API_BASE_URL must be set"; exit 1; }
+	@test -n "$$VITE_FIREBASE_API_KEY" || { echo "VITE_FIREBASE_API_KEY must be set"; exit 1; }
+	@# VITE_AUTH_MODE must prefix `npm run build`, not `npm ci`: prefixing the
+	@# install leaves the build reading VITE_AUTH_MODE from .env.local, which
+	@# produces a dev bundle under a production label.
+	cd web && npm ci --prefer-offline --no-audit \
+	  && VITE_AUTH_MODE=firebase npm run build \
+	  && npm run guard
