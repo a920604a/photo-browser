@@ -78,8 +78,10 @@ prodcheck-up: build-prod
 	bash deploy/compose/dev-fixtures.sh
 	docker compose -f $(PRODCHECK) up -d
 	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app index
-	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=admin-1 --email=admin@example.com --role=admin
-	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=member-1 --email=member@example.com --role=member
+	@# Idempotent: re-running against a seeded stack must not fail, so an
+	@# already-existing user is not an error here.
+	-docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=admin-1 --email=admin@example.com --role=admin
+	-docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=member-1 --email=member@example.com --role=member
 	@echo "prodcheck on http://localhost:8088 (Host: photos-api.localhost), testauth on :8090"
 
 prodcheck-down:
@@ -94,3 +96,8 @@ verify-deployment:
 	 bash scripts/verify-deployment.sh --base-url http://localhost:8088 --host photos-api.localhost \
 	   --member-token "$$MEMBER" --admin-token "$$ADMIN" --denied-token "$$DENIED" \
 	   --compose $(PRODCHECK)
+
+.PHONY: restore-drill
+
+restore-drill:
+	bash scripts/restore-drill.sh
