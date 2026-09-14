@@ -272,3 +272,99 @@ func TestRunBatchBoundary(t *testing.T) {
 func getDB(s *catalog.Store) *sql.DB {
 	return s.RawDB()
 }
+
+func TestRunSkipsThumbnailsWhenDiskIsLow(t *testing.T) {
+	idx, _, sp := newIndexer(t, []scanner.Entry{entry("旅遊/日本/a.jpg", 10, 1)}, nil)
+	idx.MinFreeBytes = 2 << 30
+	idx.FreeSpace = func(string) (uint64, error) { return 1 << 30, nil } // 1 GiB < 2 GiB
+
+	counts, err := idx.Run(context.Background(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := atomic.LoadInt32(&sp.thumbCalls); got != 0 {
+		t.Fatalf("thumbnail generated %d times despite low disk", got)
+	}
+	// Losing thumbnails is acceptable; losing the catalogue is not.
+	if counts.New != 1 {
+		t.Fatalf("new=%d want 1; low disk must not stop cataloguing", counts.New)
+	}
+	if counts.Warnings == 0 {
+		t.Fatal("expected a warning recording the skipped thumbnails")
+	}
+}
+
+func TestRunReportsTheLowDiskWarning(t *testing.T) {
+	idx, _, _ := newIndexer(t, []scanner.Entry{entry("旅遊/日本/a.jpg", 10, 1)}, nil)
+	idx.MinFreeBytes = 2 << 30
+	idx.FreeSpace = func(string) (uint64, error) { return 1 << 30, nil }
+	var seen []scanner.Warning
+	idx.Warn = func(w scanner.Warning) { seen = append(seen, w) }
+
+	if _, err := idx.Run(context.Background(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if len(seen) != 1 || seen[0].Code != scanner.CodeLowDiskSpace {
+		t.Fatalf("warnings=%+v want one %s", seen, scanner.CodeLowDiskSpace)
+	}
+}
+
+func TestRunGeneratesThumbnailsWhenDiskIsFine(t *testing.T) {
+	idx, _, sp := newIndexer(t, []scanner.Entry{entry("旅遊/日本/a.jpg", 10, 1)}, nil)
+	idx.MinFreeBytes = 2 << 30
+	idx.FreeSpace = func(string) (uint64, error) { return 100 << 30, nil }
+
+	if _, err := idx.Run(context.Background(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if atomic.LoadInt32(&sp.thumbCalls) == 0 {
+		t.Fatal("no thumbnails generated with plenty of free space")
+	}
+}
+
+func TestRunChecksFreeSpaceOncePerRun(t *testing.T) {
+	entries := []scanner.Entry{
+		entry("旅遊/日本/a.jpg", 10, 1),
+		entry("旅遊/日本/b.jpg", 11, 2),
+		entry("旅遊/日本/c.jpg", 12, 3),
+	}
+	idx, _, _ := newIndexer(t, entries, nil)
+	calls := 0
+	idx.MinFreeBytes = 1 << 30
+	idx.FreeSpace = func(string) (uint64, error) { calls++; return 100 << 30, nil }
+
+	if _, err := idx.Run(context.Background(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("FreeSpace called %d times; must be once per run", calls)
+	}
+}
+
+func TestRunProceedsWhenFreeSpaceIsUnknown(t *testing.T) {
+	idx, _, sp := newIndexer(t, []scanner.Entry{entry("旅遊/日本/a.jpg", 10, 1)}, nil)
+	idx.MinFreeBytes = 2 << 30
+	idx.FreeSpace = func(string) (uint64, error) { return 0, errors.New("statfs failed") }
+
+	if _, err := idx.Run(context.Background(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	// An unreadable statfs must not silently disable thumbnails.
+	if atomic.LoadInt32(&sp.thumbCalls) == 0 {
+		t.Fatal("thumbnails were skipped because free space could not be read")
+	}
+}
+
+func TestZeroMinFreeBytesDisablesTheCheck(t *testing.T) {
+	idx, _, _ := newIndexer(t, []scanner.Entry{entry("旅遊/日本/a.jpg", 10, 1)}, nil)
+	called := false
+	idx.MinFreeBytes = 0
+	idx.FreeSpace = func(string) (uint64, error) { called = true; return 0, nil }
+
+	if _, err := idx.Run(context.Background(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if called {
+		t.Fatal("FreeSpace was consulted even though the check is disabled")
+	}
+}

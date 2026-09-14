@@ -98,3 +98,36 @@ func TestLoadRespectsExplicitIssuerOverride(t *testing.T) {
 		t.Fatalf("issuer override lost: %q", cfg.FirebaseIssuer)
 	}
 }
+
+func TestThumbnailMinFreeBytesDefaultsAndParses(t *testing.T) {
+	const def = 2 * 1024 * 1024 * 1024
+
+	c, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.ThumbnailMinFreeBytes != def {
+		t.Fatalf("default=%d want %d", c.ThumbnailMinFreeBytes, def)
+	}
+
+	t.Setenv("THUMBNAIL_MIN_FREE_BYTES", "0")
+	if c, err = Load(); err != nil {
+		t.Fatal(err)
+	} else if c.ThumbnailMinFreeBytes != 0 {
+		t.Fatalf("explicit 0 should disable the check, got %d", c.ThumbnailMinFreeBytes)
+	}
+
+	t.Setenv("THUMBNAIL_MIN_FREE_BYTES", "not-a-number")
+	if c, err = Load(); err != nil {
+		t.Fatal(err)
+	} else if c.ThumbnailMinFreeBytes != def {
+		t.Fatalf("garbage should fall back to the default, got %d", c.ThumbnailMinFreeBytes)
+	}
+
+	t.Setenv("THUMBNAIL_MIN_FREE_BYTES", "1073741824")
+	if c, err = Load(); err != nil {
+		t.Fatal(err)
+	} else if c.ThumbnailMinFreeBytes != 1073741824 {
+		t.Fatalf("explicit value not parsed, got %d", c.ThumbnailMinFreeBytes)
+	}
+}

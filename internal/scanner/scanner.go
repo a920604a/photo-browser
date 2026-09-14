@@ -27,6 +27,10 @@ const (
 	CodeUnsupported  = "unsupported"
 	CodeSymlink      = "symlink"
 	CodeUnreadable   = "unreadable"
+
+	// CodeLowDiskSpace is emitted by the indexer, not by Walk: the thumbnail
+	// volume is too full to keep generating derivatives.
+	CodeLowDiskSpace = "low_disk_space"
 )
 
 var supportedExt = map[string]struct{}{

@@ -296,6 +296,11 @@ func (env *prodEnv) indexer() (*indexer.Indexer, error) {
 		Walk:         scanner.Walk,
 		ReadMetadata: media.ReadMetadata,
 		Thumbnail:    thumb.Generate,
+		FreeSpace:    indexer.FreeBytes,
+		MinFreeBytes: env.cfg.ThumbnailMinFreeBytes,
+		Warn: func(w scanner.Warning) {
+			fmt.Fprintf(env.stdout, "warning: %s %s\n", w.Code, w.Path)
+		},
 	}
 	return env.idx, nil
 }
