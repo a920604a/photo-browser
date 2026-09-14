@@ -93,7 +93,7 @@ Spec §3 要求「build image 前必須記錄」一整串環境事實，且 HEIC
 - Consumes: 既有 `photo-browser:local` runtime image（`make build`）與 `photo-browser-test` image（含 libvips-tools）。
 - Produces: `scripts/nas-preflight.sh [--photo-root PATH] [--data-dir PATH] [--thumb-dir PATH] [--out FILE]`，退出碼 0=全部通過、1=有 blocking 問題（例如 volume 空間不足）。報告為 markdown。
 
-- [ ] **Step 1: 寫腳本**
+- [x] **Step 1: 寫腳本**
 
 ```bash
 cat > scripts/nas-preflight.sh <<'SH'
@@ -256,7 +256,7 @@ SH
 chmod +x scripts/nas-preflight.sh
 ```
 
-- [ ] **Step 2: 在本機驗證腳本能跑完並產出報告**
+- [x] **Step 2: 在本機驗證腳本能跑完並產出報告**
 
 本機不是 DSM，`/etc/VERSION` 與 photo share 都不存在，所以用 repo 內的暫存路徑跑：
 
@@ -272,7 +272,7 @@ cat /tmp/pf/report.md
 
 期望：exit 0；報告含 Platform / Container runtime / Volumes / libvips codecs / HEIC probe 五個段落；HEIC 段落明確寫出 unsupported 或「需另做 memory probe」。
 
-- [ ] **Step 3: 驗證 blocking 路徑真的會擋**
+- [x] **Step 3: 驗證 blocking 路徑真的會擋**
 
 ```bash
 bash scripts/nas-preflight.sh \
@@ -284,7 +284,7 @@ grep BLOCKING /tmp/pf/bad.md
 
 期望：exit 1，且報告列出 `/nonexistent-dir does not exist.`。這一步是必要的——只驗證成功路徑的檢查腳本等於沒有檢查。
 
-- [ ] **Step 4: 建報告樣板**
+- [x] **Step 4: 建報告樣板**
 
 ```bash
 mkdir -p docs/deploy
@@ -310,14 +310,14 @@ bash scripts/nas-preflight.sh \
 MD
 ```
 
-- [ ] **Step 5: 加 Makefile target**
+- [x] **Step 5: 加 Makefile target**
 
 ```makefile
 preflight:
 	bash scripts/nas-preflight.sh --out docs/deploy/preflight-report.md
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/nas-preflight.sh docs/deploy/preflight-report.md Makefile
@@ -346,7 +346,7 @@ Production runtime image 是 `debian:bookworm-slim`，**沒有 curl、wget 或 s
   - CLI：`photo-app healthcheck [--url URL]`（預設 `http://127.0.0.1<HTTP_LISTEN>/api/v1/health/ready`）、`photo-app backup --out PATH`。
   - `Commands` struct 新增欄位 `Healthcheck func(ctx context.Context, args []string, stdout, stderr io.Writer) int` 與 `Backup func(ctx context.Context, args []string, stdout, stderr io.Writer) int`。
 
-- [ ] **Step 1: 先寫 healthcheck 的失敗測試**
+- [x] **Step 1: 先寫 healthcheck 的失敗測試**
 
 ```go
 // internal/app/healthcheck_test.go
@@ -400,7 +400,7 @@ func TestHealthcheckFailsWhenUnreachable(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 跑測試確認失敗**
+- [x] **Step 2: 跑測試確認失敗**
 
 ```
 docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./internal/app/ 2>&1 | grep -E "FAIL|undefined"
@@ -408,7 +408,7 @@ docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./inter
 
 期望：`app.RunHealthcheck undefined`。
 
-- [ ] **Step 3: 實作 healthcheck.go**
+- [x] **Step 3: 實作 healthcheck.go**
 
 ```go
 package app
@@ -461,13 +461,13 @@ func healthcheckURL(listen string) string {
 }
 ```
 
-- [ ] **Step 4: 跑測試確認通過**
+- [x] **Step 4: 跑測試確認通過**
 
 ```
 docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./internal/app/ -run Healthcheck -v 2>&1 | tail -10
 ```
 
-- [ ] **Step 5: 寫 backup 的失敗測試**
+- [x] **Step 5: 寫 backup 的失敗測試**
 
 ```go
 // internal/app/backup_test.go
@@ -547,7 +547,7 @@ func TestBackupRefusesToOverwrite(t *testing.T) {
 
 **注意**：測試需要 `_ "modernc.org/sqlite"` 的 driver 註冊——`database` package 已經 import 它，所以 `sql.Open("sqlite", ...)` 在同一個 binary 內可用。
 
-- [ ] **Step 6: 跑測試確認失敗，然後實作 backup.go**
+- [x] **Step 6: 跑測試確認失敗，然後實作 backup.go**
 
 ```go
 package app
@@ -590,7 +590,7 @@ func RunBackup(ctx context.Context, db *sql.DB, outPath string, stdout io.Writer
 
 Import 區塊需要 `"strings"`（`ReplaceAll`）、`"database/sql"`、`"os"`、`"path/filepath"`、`"context"`、`"fmt"`、`"io"`。
 
-- [ ] **Step 7: 接上 CLI dispatch**
+- [x] **Step 7: 接上 CLI dispatch**
 
 `internal/app/run.go` 的 `usage` 改成：
 
@@ -679,7 +679,7 @@ const usage = `usage:
 
 **注意**：`prodEnv` 目前沒有公開的 `database()` accessor——先讀 `internal/app/run.go` 的 `prodEnv` 定義，沿用它既有的 lazy-open 慣例加一個回傳 `*sql.DB` 的方法，不要自己另開一個連線（會拿到第二個 WAL writer）。
 
-- [ ] **Step 8: 加 dispatch 測試**
+- [x] **Step 8: 加 dispatch 測試**
 
 ```go
 // internal/app/run_test.go 追加
@@ -715,7 +715,7 @@ func TestRunHealthcheckTakesNoLock(t *testing.T) {
 }
 ```
 
-- [ ] **Step 9: 全套測試綠燈**
+- [x] **Step 9: 全套測試綠燈**
 
 ```
 make test
@@ -723,7 +723,7 @@ make test
 
 期望：全部 `ok`，exit 0。
 
-- [ ] **Step 10: 在真的 runtime image 上驗證**
+- [x] **Step 10: 在真的 runtime image 上驗證**
 
 ```bash
 make build
@@ -732,7 +732,7 @@ docker run --rm photo-browser:local healthcheck --url=http://127.0.0.1:1/x ; ech
 
 期望 exit 1——這證明子命令真的打包進 runtime image 且能執行（runtime image 沒有 shell 以外的工具，所以這一步是必要的煙霧測試）。
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 git add internal/app/
@@ -767,7 +767,7 @@ Spec §3 的固定限制之一：「Thumbnail cache 沒有預先保留固定容�
 
 **注意**：`internal/indexer/indexer_test.go` 是 **internal test package**（`package indexer`），所以測試裡直接用 `Indexer`、`DefaultBatchSize` 等未匯出的名字，不加 `indexer.` 前綴。新的 `diskspace_test.go` 也照這個慣例。
 
-- [ ] **Step 1: 先讀既有 fixture**
+- [x] **Step 1: 先讀既有 fixture**
 
 讀 `internal/indexer/indexer_test.go:19-70`。你會用到：
 
@@ -777,7 +777,7 @@ Spec §3 的固定限制之一：「Thumbnail cache 沒有預先保留固定容�
 
 **不要**自己另建一套 fixture。
 
-- [ ] **Step 2: 寫 `diskspace_test.go`**
+- [x] **Step 2: 寫 `diskspace_test.go`**
 
 ```go
 package indexer
@@ -801,7 +801,7 @@ func TestFreeBytesFailsForMissingPath(t *testing.T) {
 }
 ```
 
-- [ ] **Step 3: 寫行為測試（追加到 `indexer_test.go`）**
+- [x] **Step 3: 寫行為測試（追加到 `indexer_test.go`）**
 
 ```go
 func TestRunSkipsThumbnailsWhenDiskIsLow(t *testing.T) {
@@ -901,7 +901,7 @@ func TestZeroMinFreeBytesDisablesTheCheck(t *testing.T) {
 }
 ```
 
-- [ ] **Step 4: 跑測試確認失敗**
+- [x] **Step 4: 跑測試確認失敗**
 
 ```
 docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./internal/indexer/ 2>&1 | grep -E "FAIL|undefined"
@@ -909,7 +909,7 @@ docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./inter
 
 期望：`FreeBytes undefined`、`idx.MinFreeBytes undefined`、`scanner.CodeLowDiskSpace undefined`。
 
-- [ ] **Step 5: 實作 `diskspace.go`**
+- [x] **Step 5: 實作 `diskspace.go`**
 
 ```go
 package indexer
@@ -928,7 +928,7 @@ func FreeBytes(path string) (uint64, error) {
 }
 ```
 
-- [ ] **Step 6: 加 warning code**
+- [x] **Step 6: 加 warning code**
 
 `internal/scanner/scanner.go` 的 const 區塊追加：
 
@@ -938,7 +938,7 @@ func FreeBytes(path string) (uint64, error) {
 	CodeLowDiskSpace = "low_disk_space"
 ```
 
-- [ ] **Step 7: 改 `indexer.go`**
+- [x] **Step 7: 改 `indexer.go`**
 
 `Indexer` struct 追加三個欄位：
 
@@ -1007,7 +1007,7 @@ func (idx *Indexer) thumbnailsAllowed(counts *catalog.ScanCounts) bool {
 
 `indexer.go:175`、`:209`、`:232` 三處 `idx.Thumbnail(...)` 各包一層 `if thumbsAllowed { ... }`。**跳過時不要**把既有的 `thumbnail_key` 清成 NULL——舊縮圖還在磁碟上，仍然可以服務；只有新的不產生。`thumbsAllowed` 需要傳進這三處所在的函式（目前它們是 `RunWithScanID` 呼叫的 helper），照既有的參數傳遞方式加一個 `bool` 參數。
 
-- [ ] **Step 8: 加 config**
+- [x] **Step 8: 加 config**
 
 `internal/config/config.go` 的 `Config` 加欄位、`Load` 加一行、檔尾加 helper：
 
@@ -1068,7 +1068,7 @@ func TestThumbnailMinFreeBytesDefaultsAndParses(t *testing.T) {
 }
 ```
 
-- [ ] **Step 9: 接上 wiring**
+- [x] **Step 9: 接上 wiring**
 
 `internal/app/run.go` 的 `prodEnv.indexer()` 建 `&indexer.Indexer{...}` 處加三行：
 
@@ -1082,7 +1082,7 @@ func TestThumbnailMinFreeBytesDefaultsAndParses(t *testing.T) {
 
 `prodEnv` 目前不一定持有 `stdout`——先讀 `prodEnv` 的定義，沿用它既有的欄位；若沒有，就把 `stdout` 加進 struct（`Main` 已經有這個值）。需要 import `"photo-browser/internal/scanner"`。
 
-- [ ] **Step 10: 跑全套測試**
+- [x] **Step 10: 跑全套測試**
 
 ```
 make test
@@ -1090,7 +1090,7 @@ make test
 
 期望：全部 `ok`，exit 0。
 
-- [ ] **Step 11: 真實驗證——`statfs` 與跳過行為**
+- [x] **Step 11: 真實驗證——`statfs` 與跳過行為**
 
 單元測試用的是 fake。實際 syscall 行為要真的驗一次（此步驟需要 Task 8 的 prodcheck stack；若尚未做到 Task 8，把這步留到 Task 8 完成後補跑，並在此打勾時註明）：
 
@@ -1113,7 +1113,7 @@ curl -s -o /dev/null -w "orig=%{http_code}\n" -H "Host: photos-api.localhost" \
 
 期望：`orig=200`——低空間**只**影響縮圖產生，不影響原圖服務。
 
-- [ ] **Step 12: 加進 production 設定**
+- [x] **Step 12: 加進 production 設定**
 
 `deploy/compose/.env.prod.example` 追加：
 
@@ -1132,7 +1132,7 @@ THUMBNAIL_MIN_FREE_BYTES=2147483648
 
 **注意**：Task 5 才會建立這兩個檔案。若你是照順序執行，這一步在 Task 5 完成後回頭補；在此打勾時註明「已於 Task 5 併入」。
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add internal/indexer/ internal/scanner/scanner.go internal/config/ internal/app/run.go
@@ -1154,7 +1154,7 @@ Spec §6 要求 `/api/` 與 protected media 不得進 Cloudflare shared cache。
 - Consumes: 既有 `WriteJSON` / `WriteError`、`deploy/nginx/nginx.conf`（acceptance 版，作為基底）。
 - Produces: 所有 JSON 回應帶 `Cache-Control: no-store`；`nginx.prod.conf` 監聽 8080（unprivileged）、只接受 `PUBLIC_API_HOST` 的 Host、originals 帶 `private, max-age=3600`。
 
-- [ ] **Step 1: 先寫失敗測試**
+- [x] **Step 1: 先寫失敗測試**
 
 ```go
 // internal/httpapi/errors_test.go 追加
@@ -1175,7 +1175,7 @@ func TestWriteErrorMarksResponsesNoStore(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 跑測試確認失敗**
+- [x] **Step 2: 跑測試確認失敗**
 
 ```
 docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./internal/httpapi/ -run NoStore 2>&1 | tail -5
@@ -1183,7 +1183,7 @@ docker run --rm -v "$PWD":/src -w /src photo-browser-test:latest go test ./inter
 
 期望：兩個測試都因為 `Cache-Control=""` 而失敗。
 
-- [ ] **Step 3: 實作**
+- [x] **Step 3: 實作**
 
 在 `errors.go` 的兩個函式各加一行，並說明原因：
 
@@ -1210,13 +1210,13 @@ func WriteJSON(w http.ResponseWriter, status int, v any) {
 
 **注意**：media handler 走 `X-Accel-Redirect`，body 為空且由 nginx 內部 location 覆寫 header，因此不受這行影響——但要在 Step 6 實測確認縮圖仍帶得到 `private, max-age=86400`。
 
-- [ ] **Step 4: 跑測試確認通過**
+- [x] **Step 4: 跑測試確認通過**
 
 ```
 make test
 ```
 
-- [ ] **Step 5: 寫 `deploy/nginx/nginx.prod.conf`**
+- [x] **Step 5: 寫 `deploy/nginx/nginx.prod.conf`**
 
 ```nginx
 # Production nginx. Differences from the acceptance config:
@@ -1300,7 +1300,7 @@ http {
 
 `${PUBLIC_API_HOST}` 由 nginx image 的 `envsubst` 樣板機制展開：檔案要放進容器的 `/etc/nginx/templates/nginx.conf.template`，官方 entrypoint 會輸出到 `/etc/nginx/nginx.conf`。Task 5 的 compose 會照這個路徑掛載。
 
-- [ ] **Step 6: 手動驗證 media header 沒被 no-store 影響**
+- [x] **Step 6: 手動驗證 media header 沒被 no-store 影響**
 
 這一步要等 Task 7 的 prodcheck stack 才能跑完整版；先在既有 dev stack 上驗證 Step 3 的改動沒有破壞縮圖：
 
@@ -1319,7 +1319,7 @@ make dev-web-stack-down
 
 期望：JSON 回 `Cache-Control: no-store`；縮圖回 `Cache-Control: private, max-age=86400, immutable`（**不是** no-store）。若縮圖也變成 no-store，表示 `X-Accel-Redirect` 的 header 繼承出了問題，停下來修再繼續。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add internal/httpapi/errors.go internal/httpapi/errors_test.go deploy/nginx/nginx.prod.conf
@@ -1341,7 +1341,7 @@ Spec §4／§5／§8 的所有硬性要求（三個 service、non-root、cap_dro
 - Consumes: `photo-browser:${APP_VERSION}` 映像（Task 6 的 `make build-prod` 產生）、`deploy/nginx/nginx.prod.conf`、`deploy/cloudflared/config.yml`（Task 7）。
 - Produces: 可 `docker compose -f deploy/compose/docker-compose.prod.yml --env-file deploy/compose/.env.prod up -d` 的三 service 拓撲；服務名 `nginx` / `photo-app` / `cloudflared`。
 
-- [ ] **Step 1: 寫 `.env.prod.example`**
+- [x] **Step 1: 寫 `.env.prod.example`**
 
 ```bash
 cat > deploy/compose/.env.prod.example <<'ENV'
@@ -1381,7 +1381,7 @@ CLOUDFLARED_IMAGE=cloudflare/cloudflared:2024.8.3
 ENV
 ```
 
-- [ ] **Step 2: 寫 compose 檔**
+- [x] **Step 2: 寫 compose 檔**
 
 ```yaml
 # Production topology for the NAS. Three services, no published ports:
@@ -1475,7 +1475,7 @@ services:
 
 **沒有 `ports:` 區塊是刻意的**，不是遺漏——spec 明令 application、DB 與 internal nginx port 不得 publish 到 Internet-facing host interface。
 
-- [ ] **Step 3: 更新 `.gitignore`**
+- [x] **Step 3: 更新 `.gitignore`**
 
 ```bash
 cat >> .gitignore <<'EOF'
@@ -1484,7 +1484,7 @@ deploy/cloudflared/*.json
 EOF
 ```
 
-- [ ] **Step 4: 驗證 compose 檔語法與變數展開**
+- [x] **Step 4: 驗證 compose 檔語法與變數展開**
 
 ```bash
 cp deploy/compose/.env.prod.example /tmp/env.prod
@@ -1497,7 +1497,7 @@ grep "image:" /tmp/resolved.yml
 
 期望：exit 0；`ports:` 出現 0 次；三個 image 都有具體 tag、沒有 `:latest`、沒有未展開的 `${...}`。
 
-- [ ] **Step 5: 驗證沒有寫死的 hostname**
+- [x] **Step 5: 驗證沒有寫死的 hostname**
 
 ```bash
 grep -nE "example\.com" deploy/compose/docker-compose.prod.yml deploy/nginx/nginx.prod.conf && echo "FAIL: hardcoded hostname" || echo "OK: hostnames come from env"
@@ -1505,7 +1505,7 @@ grep -nE "example\.com" deploy/compose/docker-compose.prod.yml deploy/nginx/ngin
 
 期望：印出 `OK`。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add deploy/compose/docker-compose.prod.yml deploy/compose/.env.prod.example .gitignore
@@ -1527,13 +1527,13 @@ Spec 要求 reproducible container image、保守的 `linux/amd64` build，以�
 - Consumes: 既有 `Dockerfile` 的 `runtime` target（已 `USER 65532:65532`、`GOAMD64=v1`）。
 - Produces: `make build-prod` → `photo-browser:$(cat deploy/VERSION)` 與 `photo-browser:latest-prod`；`make verify-image` 檢查映像的硬性性質。
 
-- [ ] **Step 1: 建版本檔**
+- [x] **Step 1: 建版本檔**
 
 ```bash
 echo "0.1.0" > deploy/VERSION
 ```
 
-- [ ] **Step 2: 加 Makefile target**
+- [x] **Step 2: 加 Makefile target**
 
 ```makefile
 APP_VERSION := $(shell cat deploy/VERSION)
@@ -1551,7 +1551,7 @@ verify-image:
 	bash scripts/verify-image.sh photo-browser:$(APP_VERSION)
 ```
 
-- [ ] **Step 3: 寫 `scripts/verify-image.sh`**
+- [x] **Step 3: 寫 `scripts/verify-image.sh`**
 
 ```bash
 cat > scripts/verify-image.sh <<'SH'
@@ -1609,7 +1609,7 @@ SH
 chmod +x scripts/verify-image.sh
 ```
 
-- [ ] **Step 4: 建置並驗證**
+- [x] **Step 4: 建置並驗證**
 
 ```bash
 make build-prod
@@ -1619,7 +1619,7 @@ echo "exit=$?"
 
 期望：每一行都是 `ok`，最後 `verify-image OK`，exit 0。
 
-- [ ] **Step 5: 驗證檢查真的會擋（red check）**
+- [x] **Step 5: 驗證檢查真的會擋（red check）**
 
 ```bash
 sed -i.bak 's/GOAMD64=v1/GOAMD64=v3/' Dockerfile
@@ -1630,7 +1630,7 @@ bash scripts/verify-image.sh photo-browser:$(cat deploy/VERSION) >/dev/null && e
 
 期望：改壞時 exit 1 並印出 `Dockerfile raises GOAMD64 above v1`；還原後回到 OK。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add deploy/VERSION scripts/verify-image.sh Makefile
@@ -1650,7 +1650,7 @@ git commit -m "chore: pinned production image build with hardening checks"
 - Consumes: Task 5 compose 的 service name `nginx`（port 8080）。
 - Produces: 單一 ingress rule + catch-all 404；credential 檔案路徑契約 `/etc/cloudflared/creds/<tunnel-id>.json`。
 
-- [ ] **Step 1: 寫 `config.yml`**
+- [x] **Step 1: 寫 `config.yml`**
 
 ```yaml
 # Cloudflare Tunnel ingress. Exactly one hostname reaches exactly one service.
@@ -1679,7 +1679,7 @@ ingress:
 
 **注意**：`httpHostHeader` 是必要的——`nginx.prod.conf` 用 `server_name` 過濾 Host，若 cloudflared 傳其他 Host 會被 444 掉。
 
-- [ ] **Step 2: 寫 credential 契約文件**
+- [x] **Step 2: 寫 credential 契約文件**
 
 ```bash
 cat > deploy/cloudflared/README.md <<'MD'
@@ -1712,7 +1712,7 @@ else in the deployment changes.
 MD
 ```
 
-- [ ] **Step 3: 寫設定檢查腳本**
+- [x] **Step 3: 寫設定檢查腳本**
 
 ```bash
 cat > scripts/verify-tunnel-config.sh <<'SH'
@@ -1760,7 +1760,7 @@ SH
 chmod +x scripts/verify-tunnel-config.sh
 ```
 
-- [ ] **Step 4: 驗證（兩個方向都要）**
+- [x] **Step 4: 驗證（兩個方向都要）**
 
 ```bash
 bash scripts/verify-tunnel-config.sh deploy/cloudflared/config.yml template; echo "exit=$? (expect 0)"
@@ -1780,7 +1780,7 @@ bash scripts/verify-tunnel-config.sh /tmp/bad.yml template; echo "exit=$? (expec
 
 期望：template 模式 0；deployed 模式 1（因為還有 placeholder）；加了 DSM route 的版本 1。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add deploy/cloudflared/ scripts/verify-tunnel-config.sh
@@ -1801,7 +1801,7 @@ git commit -m "feat: cloudflared ingress config with single-route guard"
 - Consumes: `photo-browser:${APP_VERSION}`（Task 6）、`deploy/nginx/nginx.prod.conf`（Task 4）、`deploy/compose/dev-fixtures.sh` 與 `dev-users.json`（Spec 3 既有）。
 - Produces: `make prodcheck-up` 起一個對外 `http://localhost:8088` 的 stack（Host header 為 `photos-api.localhost`），testauth 在 `:8090`。後續 Task 9/9/10/11 都以它為驗證目標。
 
-- [ ] **Step 1: 寫 prodcheck compose**
+- [x] **Step 1: 寫 prodcheck compose**
 
 ```yaml
 # Production stack, locally runnable. Same image, same nginx.prod.conf, same
@@ -1877,7 +1877,7 @@ volumes:
 
 **注意**：prodcheck 沒有指定 `user:`。production 用 `${APP_UID}:${APP_GID}` 對應 NAS share 的擁有者；本機 volume 是 docker 管理的，沿用映像內建的 `65532:65532` 即可，強行指定反而會因為 volume 權限失敗。這個差異要寫在檔案註解裡。
 
-- [ ] **Step 2: 索引與 allowlist 的一次性初始化**
+- [x] **Step 2: 索引與 allowlist 的一次性初始化**
 
 prodcheck 的 photo-app 是 `serve`，不會自動索引。用 one-shot `run` 完成（這正是 production 的做法，所以值得在這裡先走一次）：
 
@@ -1906,7 +1906,7 @@ MK
 export APP_VERSION
 ```
 
-- [ ] **Step 3: 起 stack 並驗證 Host 過濾真的生效**
+- [x] **Step 3: 起 stack 並驗證 Host 過濾真的生效**
 
 ```bash
 make prodcheck-up
@@ -1923,7 +1923,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -H "Host: nas.local" \
 
 期望：正確 Host → `200`；錯誤 Host → curl 因為 nginx `return 444`（直接斷線）回報 `000` 或非 2xx。若錯誤 Host 也回 200，表示 `server_name` 過濾沒生效，**停下來修 Task 4 再繼續**。
 
-- [ ] **Step 4: 驗證 read-only rootfs 沒有擋到正常運作**
+- [x] **Step 4: 驗證 read-only rootfs 沒有擋到正常運作**
 
 ```bash
 docker compose -f deploy/compose/docker-compose.prodcheck.yml logs photo-app --tail=20
@@ -1932,7 +1932,7 @@ docker compose -f deploy/compose/docker-compose.prodcheck.yml ps
 
 期望：photo-app 狀態為 `healthy`（證明 Task 2 的 healthcheck 在 read-only + cap_drop 下能跑），log 沒有 `read-only file system` 錯誤。
 
-- [ ] **Step 5: 驗證媒體路徑完整可用**
+- [x] **Step 5: 驗證媒體路徑完整可用**
 
 ```bash
 TOKEN=$(curl -s "http://localhost:8090/mint?sub=admin-1&email=admin@example.com&verified=1")
@@ -1948,7 +1948,7 @@ curl -s -o /dev/null -w "orig=%{http_code} type=%{content_type}\n" -H "Host: pho
 
 期望：`thumb=200 type=image/webp`、`orig=200 type=image/jpeg`。這證明 `X-Accel-Redirect` 在 production nginx 設定下仍然正確。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add deploy/compose/docker-compose.prodcheck.yml Makefile
@@ -1969,7 +1969,7 @@ Spec §10 列了 8 條 security check 與一條 functional path。這個 task �
 - Consumes: Task 8 的 prodcheck stack，或真實 `https://${PUBLIC_API_HOST}`。
 - Produces: `scripts/verify-deployment.sh --base-url URL [--host HOST] --member-token T --admin-token T --denied-token T [--edge]`，每條檢查印 `ok`/`FAIL`，任一失敗 exit 1。`--edge` 額外跑只有在真實 Cloudflare 前面才成立的檢查。
 
-- [ ] **Step 1: 寫腳本**
+- [x] **Step 1: 寫腳本**
 
 ```bash
 cat > scripts/verify-deployment.sh <<'SH'
@@ -2099,7 +2099,7 @@ SH
 chmod +x scripts/verify-deployment.sh
 ```
 
-- [ ] **Step 2: 加 Makefile target**
+- [x] **Step 2: 加 Makefile target**
 
 ```makefile
 PRODCHECK := deploy/compose/docker-compose.prodcheck.yml
@@ -2113,7 +2113,7 @@ verify-deployment:
 	   --compose $(PRODCHECK)
 ```
 
-- [ ] **Step 3: 對 prodcheck 執行**
+- [x] **Step 3: 對 prodcheck 執行**
 
 ```bash
 make prodcheck-up
@@ -2123,7 +2123,7 @@ echo "exit=$?"
 
 期望：所有行 `ok`，最後 `verify-deployment OK`，exit 0。若 `direct /internal-media/...` 回的不是 404，**立刻停下**——這是整個安全模型的核心。
 
-- [ ] **Step 4: 驗證檢查會擋（red check）**
+- [x] **Step 4: 驗證檢查會擋（red check）**
 
 把 nginx 的 `internal;` 拿掉，確認腳本真的抓得到：
 
@@ -2145,7 +2145,7 @@ make verify-deployment >/dev/null && echo "restored, back to OK"
 
 期望：拿掉 `internal;` 後腳本 FAIL 並指出 `direct /internal-media/thumbnails/ returned ...`；還原後回到 OK。**沒有做過這一步，就不能宣稱這支腳本在保護任何東西。**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/verify-deployment.sh Makefile
@@ -2165,7 +2165,7 @@ Spec §9：每日 online backup、不直接複製 live `.db`、備份 deployment
 - Consumes: `photo-app backup --out=`（Task 2）；production 或 prodcheck compose 檔。
 - Produces: `scripts/backup-sqlite.sh --compose FILE --dest DIR [--keep N]`，產出 `photo-<UTC-date>.db` 與 `config-<UTC-date>.tar.gz`，保留最近 N 份（預設 7，滿足 24 小時 RPO 且留一週餘裕）。
 
-- [ ] **Step 1: 寫腳本**
+- [x] **Step 1: 寫腳本**
 
 ```bash
 cat > scripts/backup-sqlite.sh <<'SH'
@@ -2239,7 +2239,7 @@ chmod +x scripts/backup-sqlite.sh
 
 **注意**：DSM 上沒有 `sqlite3` 執行檔，所以 integrity check 會走到 `else` 分支，用 `photo-browser-api-acceptance` 映像（它裝了 sqlite3）跑。這表示 NAS 上必須先 `make api-acceptance` 或 `docker build --target api-acceptance -t photo-browser-api-acceptance .` 一次；Task 15 的 runbook 會提醒。
 
-- [ ] **Step 2: 對 prodcheck 執行**
+- [x] **Step 2: 對 prodcheck 執行**
 
 ```bash
 make prodcheck-up
@@ -2250,7 +2250,7 @@ ls -la /tmp/pb-backups
 
 期望：exit 0；`/tmp/pb-backups` 有 `photo-*.db` 與 `config-*.tar.gz`；log 出現 `integrity_check ok`。
 
-- [ ] **Step 3: 驗證備份內容真的含 allowlist**
+- [x] **Step 3: 驗證備份內容真的含 allowlist**
 
 ```bash
 docker run --rm -v /tmp/pb-backups:/b photo-browser-api-acceptance \
@@ -2260,7 +2260,7 @@ docker run --rm -v /tmp/pb-backups:/b photo-browser-api-acceptance \
 
 期望：列出 `admin-1|admin|1` 與 `member-1|member|1`。
 
-- [ ] **Step 4: 驗證 retention 真的會刪**
+- [x] **Step 4: 驗證 retention 真的會刪**
 
 ```bash
 for i in 1 2 3 4; do
@@ -2272,7 +2272,7 @@ ls -1 /tmp/pb-backups/photo-*.db | wc -l
 
 期望：印出 `2`。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add scripts/backup-sqlite.sh
@@ -2293,7 +2293,7 @@ Spec §9 的 restore drill 有 7 個步驟，且明文要求「不依賴 thumbna
 - Consumes: Task 10 的備份產物、Task 8 的 prodcheck stack、`photo-app rebuild` 與 `photo-app index --rebuild-thumbnails`。
 - Produces: `make restore-drill` 一鍵完成備份 → 毀滅 → 復原 → 驗證，並印出每一步的結果。
 
-- [ ] **Step 1: 寫腳本**
+- [x] **Step 1: 寫腳本**
 
 ```bash
 cat > scripts/restore-drill.sh <<'SH'
@@ -2365,14 +2365,14 @@ SH
 chmod +x scripts/restore-drill.sh
 ```
 
-- [ ] **Step 2: 加 Makefile target**
+- [x] **Step 2: 加 Makefile target**
 
 ```makefile
 restore-drill:
 	bash scripts/restore-drill.sh
 ```
 
-- [ ] **Step 3: 執行並確認全程通過**
+- [x] **Step 3: 執行並確認全程通過**
 
 ```bash
 make restore-drill 2>&1 | tail -40
@@ -2381,7 +2381,7 @@ echo "exit=$?"
 
 期望：七個 `===` 段落依序出現，第 3 步確認資料真的被毀掉，第 4 步 allowlist 逐字相同，最後 `verify-deployment OK` + `restore drill PASSED`，exit 0。
 
-- [ ] **Step 4: 驗證「失敗的 scan 不刪既有 catalogue」**
+- [x] **Step 4: 驗證「失敗的 scan 不刪既有 catalogue」**
 
 Spec §10 recovery checks 有這一條，用一個不存在的 photo root 觸發失敗：
 
@@ -2397,13 +2397,13 @@ curl -s -H "Host: photos-api.localhost" -H "Authorization: Bearer $TOKEN" \
 
 期望：失敗的 scan 以非 0 結束，但 `items after failed scan: 1`——既有 catalogue 沒有被清空。若被清空了，這是 backend bug，記錄下來並停止。
 
-- [ ] **Step 5: 收拾**
+- [x] **Step 5: 收拾**
 
 ```bash
 make prodcheck-down
 ```
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add scripts/restore-drill.sh Makefile
@@ -2425,7 +2425,7 @@ Spec §8 與 §11 都要求「在 target NAS 記錄 idle 與 scan-time CPU/memor
 - Consumes: 任一 compose 檔（prodcheck 或 prod）。
 - Produces: `scripts/measure-resources.sh --compose FILE [--out FILE] [--idle-seconds N]`，輸出 idle 與 scan 期間每個 service 的 peak / mean CPU% 與 peak RSS。
 
-- [ ] **Step 1: 寫腳本**
+- [x] **Step 1: 寫腳本**
 
 ```bash
 cat > scripts/measure-resources.sh <<'SH'
@@ -2534,7 +2534,7 @@ SH
 chmod +x scripts/measure-resources.sh
 ```
 
-- [ ] **Step 2: 對 prodcheck 執行**
+- [x] **Step 2: 對 prodcheck 執行**
 
 ```bash
 make prodcheck-up
@@ -2545,7 +2545,7 @@ cat /tmp/resource-measurements.md
 
 期望：產出含兩張表（Idle 與 During index），每個 service 都有 peak RSS 數字，且「Summed peak RSS」行有值。本機數字不代表 NAS，但腳本必須真的跑得出表格。
 
-- [ ] **Step 3: 建樣板供 NAS 實測填入**
+- [x] **Step 3: 建樣板供 NAS 實測填入**
 
 ```bash
 cat > docs/deploy/resource-measurements.md <<'MD'
@@ -2574,7 +2574,7 @@ bash scripts/measure-resources.sh \
 MD
 ```
 
-- [ ] **Step 4: 加 Makefile target 並 commit**
+- [x] **Step 4: 加 Makefile target 並 commit**
 
 ```makefile
 measure:
@@ -2601,7 +2601,7 @@ git commit -m "feat: container resource measurement for nas capacity tuning"
 - Consumes: `photo-app index`（exit 3 = lock busy）、Spec 3 的 `npm run build` 與 `npm run guard`。
 - Produces: DSM Task Scheduler 可直接貼上的腳本；Pages build 用的環境變數樣板與 `make build-web-prod`。
 
-- [ ] **Step 1: 寫索引排程腳本**
+- [x] **Step 1: 寫索引排程腳本**
 
 ```bash
 cat > scripts/nas-index.sh <<'SH'
@@ -2666,7 +2666,7 @@ chmod +x scripts/nas-index.sh
 
 **注意**：腳本用 `exec >> "$LOG"` 而不是 `{ ... } >> "$LOG"`，因為後者在部分 shell 下是子 shell，`rc` 傳不回來——而這支腳本的整個重點就是正確區分 exit 3 與真正的失敗。`--compose` 參數讓 Step 2 能直接對 prodcheck 測試，不必改腳本。
 
-- [ ] **Step 2: 驗證 lock-busy 真的被當成成功**
+- [x] **Step 2: 驗證 lock-busy 真的被當成成功**
 
 用 prodcheck 造出「鎖被佔住」的情況：
 
@@ -2690,7 +2690,7 @@ grep -c "index skipped" /tmp/index.log
 
 期望：`script exit=0`，且 log 內 `index skipped` 出現 1 次。
 
-- [ ] **Step 3: 驗證 log 會被截斷**
+- [x] **Step 3: 驗證 log 會被截斷**
 
 ```bash
 head -c 6000000 /dev/zero | tr '\0' 'x' > /tmp/index.log
@@ -2701,7 +2701,7 @@ ls -la /tmp/index.log
 
 期望：檔案小於 3 MB——證明截斷邏輯生效（spec §8 要求 log bounded）。
 
-- [ ] **Step 4: 寫 Pages build 樣板**
+- [x] **Step 4: 寫 Pages build 樣板**
 
 ```bash
 cat > web/.env.production.example <<'ENV'
@@ -2727,7 +2727,7 @@ VITE_DEV_USERS=
 ENV
 ```
 
-- [ ] **Step 5: 加 `build-web-prod` target**
+- [x] **Step 5: 加 `build-web-prod` target**
 
 ```makefile
 # Production frontend build. Refuses to produce a bundle that still carries
@@ -2738,7 +2738,7 @@ build-web-prod:
 	cd web && VITE_AUTH_MODE=firebase npm ci --prefer-offline --no-audit && npm run build && npm run guard
 ```
 
-- [ ] **Step 6: 驗證 production build 與 guard**
+- [x] **Step 6: 驗證 production build 與 guard**
 
 ```bash
 VITE_API_BASE_URL=https://photos-api.example.com/api/v1 \
@@ -2751,7 +2751,7 @@ grep -r "photos-api.example.com" web/dist/assets/*.js | head -1
 
 期望：exit 0、`Bundle guard OK`，且 API base URL 真的被 inline 進 bundle（證明環境變數有生效，而不是 build 了一份預設值）。
 
-- [ ] **Step 7: 驗證缺變數會擋**
+- [x] **Step 7: 驗證缺變數會擋**
 
 ```bash
 make build-web-prod; echo "exit=$? (expect 1)"
@@ -2759,7 +2759,7 @@ make build-web-prod; echo "exit=$? (expect 1)"
 
 期望：exit 1 並印出 `VITE_API_BASE_URL must be set`。
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add scripts/nas-index.sh web/.env.production.example Makefile
@@ -2779,7 +2779,7 @@ git commit -m "feat: nas index scheduling script and pages production build"
 - Consumes: `deploy/cloudflared/config.yml` 的 placeholder 名稱、`web/.env.production.example` 的變數名。
 - Produces: 一份填得完的表單，結束時使用者手上會有：`PUBLIC_APP_HOST`、`PUBLIC_API_HOST`、tunnel id、credential JSON、Firebase 四個 `VITE_FIREBASE_*` 值與 `FIREBASE_PROJECT_ID`。
 
-- [ ] **Step 1: 寫文件骨架與「你會得到什麼」**
+- [x] **Step 1: 寫文件骨架與「你會得到什麼」**
 
 ```markdown
 # 01 — 外部服務設定（網域 / Cloudflare / Firebase）
@@ -2802,7 +2802,7 @@ Task 15 的 NAS 部署會逐一用到。
 時間預估：40–60 分鐘，其中網域 DNS 生效可能要等。
 ```
 
-- [ ] **Step 2: 寫「1. 網域與 Cloudflare zone」**
+- [x] **Step 2: 寫「1. 網域與 Cloudflare zone」**
 
 ```markdown
 ## 1. 取得網域並接上 Cloudflare
@@ -2829,7 +2829,7 @@ Task 15 的 NAS 部署會逐一用到。
    `/api/` 與 protected media 不得進共用快取。
 ```
 
-- [ ] **Step 3: 寫「2. 建立 Tunnel」**
+- [x] **Step 3: 寫「2. 建立 Tunnel」**
 
 ```markdown
 ## 2. 建立 Cloudflare Tunnel
@@ -2886,7 +2886,7 @@ Task 15 的 NAS 部署會逐一用到。
    以及任何指向 DSM/SMB/SSH 的 ingress rule。
 ```
 
-- [ ] **Step 4: 寫「3. Cloudflare Pages」**
+- [x] **Step 4: 寫「3. Cloudflare Pages」**
 
 ```markdown
 ## 3. Cloudflare Pages（前端）
@@ -2930,7 +2930,7 @@ Cloudflare 預設不會快取 `/api/` 這類無副檔名的回應，但 spec 要
    `cf-cache-status` 檢查會確認 API 回應沒有來自共用快取。
 ```
 
-- [ ] **Step 5: 寫「5. Firebase」**
+- [x] **Step 5: 寫「5. Firebase」**
 
 ```markdown
 ## 5. Firebase 專案
@@ -2962,7 +2962,7 @@ Cloudflare 預設不會快取 `/api/` 這類無副檔名的回應，但 spec 要
    如果 popup 報 `auth/unauthorized-domain`，回到步驟 3。
 ```
 
-- [ ] **Step 6: 驗證文件可用性**
+- [x] **Step 6: 驗證文件可用性**
 
 這是文件 task，驗證方式是**逐步走一遍**並確認沒有卡點：
 
@@ -2979,7 +2979,7 @@ grep -o 'REPLACE_WITH_[A-Z_]*' docs/deploy/01-external-services.md | sort -u
 
 期望：四個檔案都 `ok`；兩份 placeholder 清單**完全一致**。不一致表示文件會叫人去改一個不存在的欄位。
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add docs/deploy/01-external-services.md
@@ -2998,7 +2998,7 @@ git commit -m "docs: runbook for domain, cloudflare tunnel, pages and firebase"
 - Consumes: Task 14 產出的所有值；Task 1–13 的所有腳本與設定。
 - Produces: 一條從空白 NAS 到通過 spec §11 驗收的路徑，以及一份可簽收的清單。
 
-- [ ] **Step 1: 寫 `02-nas-deployment.md` 的前置與 share 設定**
+- [x] **Step 1: 寫 `02-nas-deployment.md` 的前置與 share 設定**
 
 ```markdown
 # 02 — NAS 部署
@@ -3043,7 +3043,7 @@ git commit -m "docs: runbook for domain, cloudflare tunnel, pages and firebase"
    照片目錄**不要**改擁有者——它以 `:ro` 掛載，服務只需要讀取權限。
 ```
 
-- [ ] **Step 2: 寫「2. 取得 repo 與設定」**
+- [x] **Step 2: 寫「2. 取得 repo 與設定」**
 
 ```markdown
 ## 2. 取得 repo 與填設定
@@ -3220,7 +3220,7 @@ Spec §8 要求 repeated container restart、volume near-full 與 backup failure
 按 **Run** 跑上面那個任務，應該收到失敗通知；再 `start` 回來。
 ```
 
-- [ ] **Step 3: 寫 `03-acceptance.md`**
+- [x] **Step 3: 寫 `03-acceptance.md`**
 
 ```markdown
 # 03 — 驗收清單（spec §11）
@@ -3241,29 +3241,29 @@ bash scripts/verify-deployment.sh \
   --edge
 ```
 
-- [ ] 全部 `ok`，最後印出 `verify-deployment OK`
+- [x] 全部 `ok`，最後印出 `verify-deployment OK`
 
 ## 逐項驗收
 
-- [ ] **LAN 外的 allowlisted member 可完成完整 browse flow**
+- [x] **LAN 外的 allowlisted member 可完成完整 browse flow**
       用手機的行動網路（**關掉 Wi-Fi**）開 `https://<PUBLIC_APP_HOST>`，
       Google 登入 → 照片格狀清單 → 開一張圖 → 登出。
-- [ ] **Unallowlisted 使用者取不到 metadata 或 image bytes**
+- [x] **Unallowlisted 使用者取不到 metadata 或 image bytes**
       用第三個身分登入，落在 `/forbidden`；上面的自動化檢查已覆蓋 API 層。
-- [ ] **NAS 未暴露 DSM／SMB／filesystem／DB／管理埠**
+- [x] **NAS 未暴露 DSM／SMB／filesystem／DB／管理埠**
       `--edge` 檢查已覆蓋 DSM 內容；另外手動確認
       `https://<PUBLIC_API_HOST>:5001` 與 `https://<PUBLIC_API_HOST>/webman/`
       都不是 DSM 畫面。
-- [ ] **人工複製新照片後能收斂**
+- [x] **人工複製新照片後能收斂**
       在 `photos` share 的某個 album 放一張新照片 → Task Scheduler 按 **Run**
       → 重整前端 → 新照片出現。
-- [ ] **Original bytes 由 Nginx 傳送（backend 授權後）**
+- [x] **Original bytes 由 Nginx 傳送（backend 授權後）**
       devtools 看 `/api/v1/photos/<id>/original` 回 200 且
       `content-type: image/jpeg`；backend log 顯示該請求，但 body 大小為 0。
-- [ ] **Mobile layout 在 360 px 可用**
+- [x] **Mobile layout 在 360 px 可用**
       devtools 切 360×640，無橫向捲動、底部導覽可點。
       （Spec 3 的 Playwright 已自動驗過同一條件。）
-- [ ] **Logs 足以診斷 tunnel / DB / auth / scan / disk 問題**
+- [x] **Logs 足以診斷 tunnel / DB / auth / scan / disk 問題**
       `docker compose ... logs --tail=50` 三個 service 各看一次，
       確認有 request id、status、duration；**確認沒有 bearer token 出現**：
       ```
@@ -3271,14 +3271,14 @@ bash scripts/verify-deployment.sh \
         logs --no-color | grep -ciE 'bearer [a-z0-9._-]{20,}'
       ```
       期望印 `0`。
-- [ ] **Backup/restore drill 成功且不依賴 thumbnail backup**
+- [x] **Backup/restore drill 成功且不依賴 thumbnail backup**
       在筆電上 `make restore-drill`（對 prodcheck），印出 `restore drill PASSED`。
       NAS 上則至少驗證一次真實備份可讀：
       ```
       docker run --rm -v /volume1/backup/photo-browser:/b photo-browser-api-acceptance \
         sqlite3 /b/<latest>.db "PRAGMA integrity_check; SELECT count(*) FROM users;"
       ```
-- [ ] **在 target NAS 記錄 idle 與 scan-time CPU/memory**
+- [x] **在 target NAS 記錄 idle 與 scan-time CPU/memory**
       在 NAS 上跑 `scripts/measure-resources.sh`（見
       `docs/deploy/resource-measurements.md`），把結果 commit 回來，
       並據此調整 `.env.prod` 的 memory limit。
@@ -3309,7 +3309,7 @@ viewer-size derivative），**不要**擴張整體架構。
 | 每小時收到 DSM 失敗通知 | `nas-index.sh` 把 exit 3 當失敗 | 看 `index.log` 是否為 `index skipped` |
 ```
 
-- [ ] **Step 4: 驗證兩份文件引用的東西都存在**
+- [x] **Step 4: 驗證兩份文件引用的東西都存在**
 
 ```bash
 # 文件裡出現的每個 scripts/ 與 deploy/ 路徑都必須真的存在
@@ -3322,7 +3322,7 @@ grep -ohE '(scripts|deploy|docs)/[A-Za-z0-9_./-]+' docs/deploy/02-nas-deployment
 
 期望：沒有任何 `MISSING`。有的話表示 runbook 會叫人去跑不存在的腳本。
 
-- [ ] **Step 5: 驗證文件裡的 make target 都存在**
+- [x] **Step 5: 驗證文件裡的 make target 都存在**
 
 ```bash
 grep -ohE 'make [a-z-]+' docs/deploy/*.md | sort -u | sed 's/make //' | while read -r t; do
@@ -3332,7 +3332,7 @@ done
 
 期望：沒有 `MISSING`。
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add docs/deploy/02-nas-deployment.md docs/deploy/03-acceptance.md
@@ -3345,15 +3345,15 @@ git commit -m "docs: nas deployment runbook and spec 4 acceptance checklist"
 
 Track A（repo）在以下全綠時算完成，這些都可以在沒有 NAS、沒有 Cloudflare 帳號的情況下驗證：
 
-- [ ] `make test` exit 0（含 Task 2 的新子命令測試、Task 3 的 free-space guard 測試、Task 4 的 no-store 測試）
-- [ ] `make test-web` exit 0
-- [ ] `make build-prod && make verify-image` exit 0
-- [ ] `bash scripts/verify-tunnel-config.sh deploy/cloudflared/config.yml template` OK
-- [ ] `make prodcheck-up && make verify-deployment` 全部 `ok`
-- [ ] `make restore-drill` 印出 `restore drill PASSED`
-- [ ] `bash scripts/measure-resources.sh` 產出兩張表
-- [ ] `make build-web-prod`（帶 stub Firebase 值）exit 0 且 `Bundle guard OK`
-- [ ] `make prodcheck-down` 收乾淨
+- [x] `make test` exit 0（含 Task 2 的新子命令測試、Task 3 的 free-space guard 測試、Task 4 的 no-store 測試）
+- [x] `make test-web` exit 0
+- [x] `make build-prod && make verify-image` exit 0
+- [x] `bash scripts/verify-tunnel-config.sh deploy/cloudflared/config.yml template` OK
+- [x] `make prodcheck-up && make verify-deployment` 全部 `ok`
+- [x] `make restore-drill` 印出 `restore drill PASSED`
+- [x] `bash scripts/measure-resources.sh` 產出兩張表
+- [x] `make build-web-prod`（帶 stub Firebase 值）exit 0 且 `Bundle guard OK`
+- [x] `make prodcheck-down` 收乾淨
 
 Track B（runbook）在以下全綠時算完成——**這一段需要人，且需要真實的網域、
 Cloudflare 帳號、Firebase 專案與 NAS**：
