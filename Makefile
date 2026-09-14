@@ -101,3 +101,8 @@ verify-deployment:
 
 restore-drill:
 	bash scripts/restore-drill.sh
+
+.PHONY: measure
+
+measure:
+	bash scripts/measure-resources.sh --compose $(PRODCHECK) --out docs/deploy/resource-measurements.md
