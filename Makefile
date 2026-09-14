@@ -84,3 +84,13 @@ prodcheck-up: build-prod
 
 prodcheck-down:
 	docker compose -f $(PRODCHECK) down -v
+
+.PHONY: verify-deployment
+
+verify-deployment:
+	@MEMBER=$$(curl -s "http://localhost:8090/mint?sub=member-1&email=member@example.com&verified=1"); \
+	 ADMIN=$$(curl -s "http://localhost:8090/mint?sub=admin-1&email=admin@example.com&verified=1"); \
+	 DENIED=$$(curl -s "http://localhost:8090/mint?sub=denied-1&email=denied@example.com&verified=1"); \
+	 bash scripts/verify-deployment.sh --base-url http://localhost:8088 --host photos-api.localhost \
+	   --member-token "$$MEMBER" --admin-token "$$ADMIN" --denied-token "$$DENIED" \
+	   --compose $(PRODCHECK)
