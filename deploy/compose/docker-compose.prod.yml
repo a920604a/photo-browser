@@ -46,6 +46,9 @@ services:
     user: "${APP_UID}:${APP_GID}"
     environment:
       PUBLIC_API_HOST: ${PUBLIC_API_HOST}
+      # Without this, envsubst writes the template into conf.d/, which is
+      # included inside http{} — and a whole nginx.conf cannot live there.
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
     volumes:
       # The official entrypoint runs envsubst over /etc/nginx/templates/*.template.
       - ../../deploy/nginx/nginx.prod.conf:/etc/nginx/templates/nginx.conf.template:ro

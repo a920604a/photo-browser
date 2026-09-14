@@ -1,4 +1,6 @@
 APP_VERSION := $(shell cat deploy/VERSION)
+export APP_VERSION
+PRODCHECK := deploy/compose/docker-compose.prodcheck.yml
 
 .PHONY: test build acceptance api-acceptance
 
@@ -68,3 +70,17 @@ build-prod:
 
 verify-image:
 	bash scripts/verify-image.sh photo-browser:$(APP_VERSION)
+
+.PHONY: prodcheck-up prodcheck-down
+
+# Production image + production nginx.conf, runnable on a laptop.
+prodcheck-up: build-prod
+	bash deploy/compose/dev-fixtures.sh
+	docker compose -f $(PRODCHECK) up -d
+	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app index
+	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=admin-1 --email=admin@example.com --role=admin
+	docker compose -f $(PRODCHECK) run --rm --no-deps photo-app admin add-user --uid=member-1 --email=member@example.com --role=member
+	@echo "prodcheck on http://localhost:8088 (Host: photos-api.localhost), testauth on :8090"
+
+prodcheck-down:
+	docker compose -f $(PRODCHECK) down -v
