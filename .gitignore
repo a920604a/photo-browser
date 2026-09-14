@@ -11,3 +11,5 @@ web/playwright-report
 web/test-results
 web/.env.local
 .dev-fixtures/
+deploy/compose/.env.prod
+deploy/cloudflared/*.json
