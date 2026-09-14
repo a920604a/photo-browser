@@ -1,0 +1,23 @@
+# Cloudflare Tunnel ingress. Exactly one hostname reaches exactly one service.
+#
+# The catch-all at the end is what keeps DSM, SMB, SSH and Container Manager
+# unreachable: anything that is not the API hostname is answered by cloudflared
+# itself with a 404 and never touches the NAS network.
+#
+# The placeholders are filled in by docs/deploy/01-external-services.md.
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: /etc/cloudflared/creds/REPLACE_WITH_TUNNEL_ID.json
+
+# No metrics port is published; cloudflared logs to stdout and compose rotates it.
+loglevel: info
+
+ingress:
+  - hostname: REPLACE_WITH_PUBLIC_API_HOST
+    service: http://nginx:8080
+    originRequest:
+      connectTimeout: 10s
+      noTLSVerify: false
+      # nginx.prod.conf filters on server_name, so the origin must see the
+      # public hostname rather than the internal service name.
+      httpHostHeader: REPLACE_WITH_PUBLIC_API_HOST
+  - service: http_status:404
