@@ -1,3 +1,5 @@
+APP_VERSION := $(shell cat deploy/VERSION)
+
 .PHONY: test build acceptance api-acceptance
 
 test:
@@ -54,3 +56,15 @@ e2e-web:
 
 preflight:
 	bash scripts/nas-preflight.sh --out docs/deploy/preflight-report.md
+
+.PHONY: build-prod verify-image
+
+# Reproducible, conservatively targeted image for the Braswell NAS.
+# GOAMD64=v1 is set in the Dockerfile and must not be relaxed.
+build-prod:
+	docker build --platform linux/amd64 --target runtime \
+	  -t photo-browser:$(APP_VERSION) -t photo-browser:latest-prod .
+	@echo "built photo-browser:$(APP_VERSION)"
+
+verify-image:
+	bash scripts/verify-image.sh photo-browser:$(APP_VERSION)
