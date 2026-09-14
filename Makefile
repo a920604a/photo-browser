@@ -49,3 +49,8 @@ e2e-web:
 	$(MAKE) dev-web-stack
 	cd web && npm ci --prefer-offline --no-audit && npx playwright install --with-deps chromium && npm run e2e
 	$(MAKE) dev-web-stack-down
+
+.PHONY: preflight
+
+preflight:
+	bash scripts/nas-preflight.sh --out docs/deploy/preflight-report.md
